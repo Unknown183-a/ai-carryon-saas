@@ -46,4 +46,4 @@ Then, in the same commit, also update `STATUS.md` and the relevant phase's `PHAS
 
 | Date | Tier | Phase | Summary | File |
 |---|---|---|---|---|
-| _(none yet)_ | | | | |
+| 2026-07-22 | daily | Phase 0 | Scaffold restructured, pushed to GitHub | `daily/2026-07-22-phase0-repo-live.md` |
