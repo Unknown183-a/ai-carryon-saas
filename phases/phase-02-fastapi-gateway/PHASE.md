@@ -1,4 +1,4 @@
-<!-- Self-contained phase brief. Companion docs: ../../docs/BUILD_GUIDE.md (full build order) and ../../docs/AI-CarryON-Architecture-Document.html (the why). -->
+<!-- Self-contained phase brief. Companion docs: ../../BUILD_GUIDE.md (full build order) and ../../docs/architecture/AI-CarryON-Architecture.html (the why). -->
 
 ## Phase 2 — FastAPI Gateway (shell only)
 *(SAD reference: Chapter 03 — FastAPI Gateway)*
@@ -8,10 +8,10 @@
 **Depends on:** Phase 1.
 
 **Tasks:**
-- [ ] `backend/api/main.py` — app instance, CORS, middleware registration
-- [ ] `backend/api/middleware/auth.py` — verifies `Authorization: Bearer <jwt>` against Firebase Admin SDK
-- [ ] `backend/api/dependencies.py` — `Depends()` providers for current user + Firestore client
-- [ ] `backend/api/routers/channels.py` — `GET /channels` (list), `POST /channels` (create, no factory logic yet — just a raw Firestore write)
+- [ ] `backend/app/api/main.py` — app instance, CORS, middleware registration
+- [ ] `backend/app/api/middleware/auth.py` — verifies `Authorization: Bearer <jwt>` against Firebase Admin SDK
+- [ ] `backend/app/api/dependencies.py` — `Depends()` providers for current user + Firestore client
+- [ ] `backend/app/api/routers/channels.py` — `GET /channels` (list), `POST /channels` (create, no factory logic yet — just a raw Firestore write)
 - [ ] `GET /health` endpoint returning `{"status": "ok"}` — this is what the Health Agent (Phase 10) will poll later, build the shape now
 - [ ] Rate limiter middleware is a stub for now (real logic in Phase 3)
 

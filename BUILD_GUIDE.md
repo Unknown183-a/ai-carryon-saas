@@ -1,6 +1,6 @@
 # AI CarryON — Build Guide & Handoff Document
 
-> **Companion to:** `AI-CarryON-Architecture-Document.html` (the SAD — read that first for *why*, use this for *what to do next*).
+> **Companion to:** `docs/architecture/AI-CarryON-Architecture.html` (the SAD — read that first for *why*, use this for *what to do next*).
 > **Purpose:** any developer — including one who has never seen this project — should be able to open this file, find the current phase, and continue without a handoff call.
 
 ---
@@ -107,7 +107,7 @@ ELEVENLABS_API_KEY=
 - [ ] Add a root `README.md` that just links to this file and the SAD
 
 ```bash
-mkdir -p ai-carryon/{frontend,backend/{api/{routers,middleware},langgraph,agents,rag,redis,firebase,channels,monitoring,scheduler,workers,database,configs},deployment,tests,docs,docker,.github/workflows}
+mkdir -p ai-carryon/{frontend,backend/{app/{api/{routers,middleware},core,services,models,database,workers},ai/{agents,langgraph,memory,rag,prompts},platform/{channel_factory,workspace,scheduler,monitoring},integrations/{firebase,youtube,gemini,openai,groq},configs},deployment,tests,docs/architecture,docker,.github/workflows}
 cd ai-carryon && git init && git add . && git commit -m "chore: initial folder skeleton"
 ```
 
@@ -149,10 +149,10 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 **Depends on:** Phase 1.
 
 **Tasks:**
-- [ ] `backend/api/main.py` — app instance, CORS, middleware registration
-- [ ] `backend/api/middleware/auth.py` — verifies `Authorization: Bearer <jwt>` against Firebase Admin SDK
-- [ ] `backend/api/dependencies.py` — `Depends()` providers for current user + Firestore client
-- [ ] `backend/api/routers/channels.py` — `GET /channels` (list), `POST /channels` (create, no factory logic yet — just a raw Firestore write)
+- [ ] `backend/app/api/main.py` — app instance, CORS, middleware registration
+- [ ] `backend/app/api/middleware/auth.py` — verifies `Authorization: Bearer <jwt>` against Firebase Admin SDK
+- [ ] `backend/app/api/dependencies.py` — `Depends()` providers for current user + Firestore client
+- [ ] `backend/app/api/routers/channels.py` — `GET /channels` (list), `POST /channels` (create, no factory logic yet — just a raw Firestore write)
 - [ ] `GET /health` endpoint returning `{"status": "ok"}` — this is what the Health Agent (Phase 10) will poll later, build the shape now
 - [ ] Rate limiter middleware is a stub for now (real logic in Phase 3)
 
@@ -171,8 +171,8 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 **Depends on:** Phase 2.
 
 **Tasks:**
-- [ ] `backend/redis/client.py` — thin wrapper around Upstash REST client with `get`, `set`, `incr`, TTL support
-- [ ] Wire real rate limiting into `middleware/rate_limit.py` using key prefix `rl:*` (Ch.11 table) and a 60-second TTL
+- [ ] `backend/app/core/redis_client.py` — thin wrapper around Upstash REST client with `get`, `set`, `incr`, TTL support
+- [ ] Wire real rate limiting into `backend/app/api/middleware/rate_limit.py` using key prefix `rl:*` (Ch.11 table) and a 60-second TTL
 - [ ] Confirm the 429 response fires after the configured request budget is exceeded
 - [ ] Leave the namespacing (`ch:{channel_id}:*`) as a TODO comment — real multi-tenant namespacing happens in Phase 6, don't build it early
 
@@ -194,14 +194,14 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 
 **Tasks:**
 - [ ] Install LangGraph: `pip install langgraph`
-- [ ] `backend/langgraph/graph.py` — define the `StateGraph` with the node sequence from Ch.04's diagram
-- [ ] `backend/langgraph/state.py` — the shared state schema (topic, research_summary, planner_json, per-agent outputs)
-- [ ] Port existing `agents_cricket`/`agents_hindi` logic into `backend/agents/`:
-  - [ ] `trend_agent.py` — reuse existing Google Trends logic, wrap Redis caching (`trend:*`, Ch.11)
-  - [ ] `research_agent.py` — reuse existing research logic; RAG/Qdrant wiring deferred to Phase 5, use plain web search for now
-  - [ ] `planner_agent.py` — new: outputs the JSON contract from Ch.06
-  - [ ] `script_agent.py`, `seo_agent.py`, `thumbnail_agent.py`, `hook_agent.py`, `tags_agent.py`, `description_agent.py` — port from existing pipeline, register as parallel LangGraph nodes (Ch.07)
-  - [ ] `review_agent.py` — port the existing grammar/fact/copyright checks; add the LLM Judge step from Ch.08
+- [ ] `backend/ai/langgraph/graph.py` — define the `StateGraph` with the node sequence from Ch.04's diagram
+- [ ] `backend/ai/langgraph/state.py` — the shared state schema (topic, research_summary, planner_json, per-agent outputs)
+- [ ] Port existing `agents_cricket`/`agents_hindi` logic into `backend/ai/agents/`:
+  - [ ] `backend/ai/agents/trend_agent.py` — reuse existing Google Trends logic, wrap Redis caching (`trend:*`, Ch.11)
+  - [ ] `backend/ai/agents/research_agent.py` — reuse existing research logic; RAG/Qdrant wiring deferred to Phase 5, use plain web search for now
+  - [ ] `backend/ai/agents/planner_agent.py` — new: outputs the JSON contract from Ch.06
+  - [ ] `backend/ai/agents/script_agent.py`, `seo_agent.py`, `thumbnail_agent.py`, `hook_agent.py`, `tags_agent.py`, `description_agent.py` — port from existing pipeline, register as parallel LangGraph nodes (Ch.07)
+  - [ ] `backend/ai/agents/review_agent.py` — port the existing grammar/fact/copyright checks; add the LLM Judge step from Ch.08
 - [ ] Wire the conditional retry edge: Review failure routes back to the specific failing Parallel agent, capped at 3 retries (Ch.04)
 - [ ] `POST /channels/{id}/generate` in FastAPI calls `graph.ainvoke(state)` (Ch.03's "How FastAPI talks to LangGraph")
 - [ ] Hardcode one channel's config in code (no database-driven config yet)
@@ -221,11 +221,11 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 **Depends on:** Phase 4.
 
 **Tasks:**
-- [ ] `backend/rag/chunker.py` — 300–500 token chunks with overlap (Ch.09)
-- [ ] `backend/rag/embed.py` — embedding client
-- [ ] `backend/rag/retriever.py` — hybrid search (vector similarity + keyword overlap, Ch.09)
+- [ ] `backend/ai/rag/chunker.py` — 300–500 token chunks with overlap (Ch.09)
+- [ ] `backend/ai/rag/embed.py` — embedding client
+- [ ] `backend/ai/rag/retriever.py` — hybrid search (vector similarity + keyword overlap, Ch.09)
 - [ ] Create the 9 Qdrant collections from Ch.10: `scripts`, `research`, `comments`, `viewer_feedback`, `competitors`, `analytics`, `knowledge`, `prompt_history`, `lessons_learned`
-- [ ] Wire `research_agent.py` to call the retriever before calling the LLM (fig 5.1's flow)
+- [ ] Wire `backend/ai/agents/research_agent.py` to call the retriever before calling the LLM (fig 5.1's flow)
 - [ ] Backfill: embed and load a handful of past scripts/research from the *old* pipeline into `scripts` and `research` collections, so retrieval has something to find on day one
 
 **Definition of Done:** a research run returns a summary that visibly cites retrieved chunks, and querying Qdrant directly shows points landing in the correct collection with correct metadata.
@@ -245,8 +245,8 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 **Tasks:**
 - [ ] Retrofit Redis keys everywhere to `ch:{channel_id}:*` prefix (Ch.12b) — grep the whole codebase for raw Redis calls, there should be none left unprefixed
 - [ ] Retrofit every Qdrant write/query to carry mandatory `channel_id` metadata filter (Ch.12b)
-- [ ] `backend/channels/brain.py` — the Channel Brain model (DNA, prompt library overrides, per-channel settings)
-- [ ] `backend/channels/factory.py` — implements the exact sequence from fig 12d.1: Validate Configuration → Create Firestore Record → Create Redis Namespace → Create Qdrant Namespace → Generate Channel DNA → Channel Ready
+- [ ] `backend/platform/channel_factory/brain.py` — the Channel Brain model (DNA, prompt library overrides, per-channel settings)
+- [ ] `backend/platform/channel_factory/factory.py` — implements the exact sequence from fig 12d.1: Validate Configuration → Create Firestore Record → Create Redis Namespace → Create Qdrant Namespace → Generate Channel DNA → Channel Ready
 - [ ] `POST /workspaces` — creates a Workspace document on first login (Ch.12c)
 - [ ] `POST /channels` (replace the raw Phase 2 version) — now runs through the Channel Factory
 - [ ] Provider-key storage: encrypt at rest, store per channel, scoped so one channel's agents never see another channel's keys (Ch.12d table)
@@ -269,10 +269,10 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 
 **Tasks:**
 - [ ] Choose a task queue: Cloud Tasks (if already on GCP) or Celery + Redis broker (faster to start with, since Redis already exists from Phase 3)
-- [ ] `backend/workers/voice_worker.py` — port existing TTS logic
-- [ ] `backend/workers/render_worker.py` — port existing FFmpeg/MoviePy logic; keep the existing `-crf 28 -threads 1` OOM fix from the old pipeline
-- [ ] `backend/workers/upload_worker.py` — port existing YouTube upload logic, including the base64-encoded OAuth credential pattern already proven in the old Railway deployment
-- [ ] `backend/workers/thumbnail_worker.py`
+- [ ] `backend/app/workers/voice_worker.py` — port existing TTS logic
+- [ ] `backend/app/workers/render_worker.py` — port existing FFmpeg/MoviePy logic; keep the existing `-crf 28 -threads 1` OOM fix from the old pipeline
+- [ ] `backend/app/workers/upload_worker.py` — port existing YouTube upload logic, including the base64-encoded OAuth credential pattern already proven in the old Railway deployment
+- [ ] `backend/app/workers/thumbnail_worker.py`
 - [ ] Wire LangGraph's terminal node to enqueue a task instead of calling these directly (Ch.15)
 - [ ] Confirm retry-on-5xx behavior actually retries (kill a worker mid-job, confirm the task re-delivers)
 
@@ -332,9 +332,9 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 **Depends on:** Phase 9.
 
 **Tasks:**
-- [ ] `backend/monitoring/health_agent.py` — small LangGraph polling Redis, Firestore, Qdrant, Cloud Run, workers, Scheduler, YouTube API, LLM providers (fig 18.1)
+- [ ] `backend/platform/monitoring/health_agent.py` — small LangGraph polling Redis, Firestore, Qdrant, Cloud Run, workers, Scheduler, YouTube API, LLM providers (fig 18.1)
 - [ ] Trigger the Health Agent on a short interval via Scheduler (Ch.16 mechanism, reused)
-- [ ] `backend/monitoring/alert_agent.py` — implements the retry-then-escalate table from Ch.19, starting with the failure modes you've already hit once in the old pipeline: render failure, upload failure, YouTube quota
+- [ ] `backend/platform/monitoring/alert_agent.py` — implements the retry-then-escalate table from Ch.19, starting with the failure modes you've already hit once in the old pipeline: render failure, upload failure, YouTube quota
 - [ ] Wire email + dashboard notification on escalation
 - [ ] Incident Report written to Firestore on escalation, with a "pause this channel's schedule" action for serious failures
 
@@ -375,7 +375,7 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 **Depends on:** Phase 11, and — practically — at least a few weeks of real analytics data. Don't start this phase early; it has nothing to learn from yet.
 
 **Tasks:**
-- [ ] `backend/agents/learning_agent.py` — pattern detection over each channel's own `analytics` collection (never cross-channel, per Ch.12e isolation)
+- [ ] `backend/ai/agents/learning_agent.py` — pattern detection over each channel's own `analytics` collection (never cross-channel, per Ch.12e isolation)
 - [ ] Write confirmed patterns into Qdrant's `lessons_learned` collection with `channel_id` metadata
 - [ ] Confirm the Research/Planner agents actually retrieve from `lessons_learned` on subsequent runs (closing the loop from fig 20.1)
 - [ ] Schedule this agent to run periodically via the Phase 8 scheduler mechanism
@@ -412,6 +412,6 @@ Future roadmap items (multi-platform publishing, A/B testing, Sponsor Agent, etc
 
 ## 4. Definitions, For Anyone New To The Project
 
-- **SAD** — the Software Architecture Document (`AI-CarryON-Architecture-Document.html`), the reference for *why* things are designed this way.
+- **SAD** — the Software Architecture Document (`docs/architecture/AI-CarryON-Architecture.html`), the reference for *why* things are designed this way.
 - **This file** — the build order and handoff log, for *what to actually do, and where we left off*.
 - If the two ever disagree, the SAD wins on design intent; this file wins on current build status.

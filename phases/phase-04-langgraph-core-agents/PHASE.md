@@ -1,4 +1,4 @@
-<!-- Self-contained phase brief. Companion docs: ../../docs/BUILD_GUIDE.md (full build order) and ../../docs/AI-CarryON-Architecture-Document.html (the why). -->
+<!-- Self-contained phase brief. Companion docs: ../../BUILD_GUIDE.md (full build order) and ../../docs/architecture/AI-CarryON-Architecture.html (the why). -->
 
 ## Phase 4 — LangGraph, Single Hardcoded Channel
 *(SAD reference: Chapters 04–08 — LangGraph, Research Agent, Planner, Parallel Generation, Review)*
@@ -11,14 +11,14 @@
 
 **Tasks:**
 - [ ] Install LangGraph: `pip install langgraph`
-- [ ] `backend/langgraph/graph.py` — define the `StateGraph` with the node sequence from Ch.04's diagram
-- [ ] `backend/langgraph/state.py` — the shared state schema (topic, research_summary, planner_json, per-agent outputs)
-- [ ] Port existing `agents_cricket`/`agents_hindi` logic into `backend/agents/`:
-  - [ ] `trend_agent.py` — reuse existing Google Trends logic, wrap Redis caching (`trend:*`, Ch.11)
-  - [ ] `research_agent.py` — reuse existing research logic; RAG/Qdrant wiring deferred to Phase 5, use plain web search for now
-  - [ ] `planner_agent.py` — new: outputs the JSON contract from Ch.06
-  - [ ] `script_agent.py`, `seo_agent.py`, `thumbnail_agent.py`, `hook_agent.py`, `tags_agent.py`, `description_agent.py` — port from existing pipeline, register as parallel LangGraph nodes (Ch.07)
-  - [ ] `review_agent.py` — port the existing grammar/fact/copyright checks; add the LLM Judge step from Ch.08
+- [ ] `backend/ai/langgraph/graph.py` — define the `StateGraph` with the node sequence from Ch.04's diagram
+- [ ] `backend/ai/langgraph/state.py` — the shared state schema (topic, research_summary, planner_json, per-agent outputs)
+- [ ] Port existing `agents_cricket`/`agents_hindi` logic into `backend/ai/agents/`:
+  - [ ] `backend/ai/agents/trend_agent.py` — reuse existing Google Trends logic, wrap Redis caching (`trend:*`, Ch.11)
+  - [ ] `backend/ai/agents/research_agent.py` — reuse existing research logic; RAG/Qdrant wiring deferred to Phase 5, use plain web search for now
+  - [ ] `backend/ai/agents/planner_agent.py` — new: outputs the JSON contract from Ch.06
+  - [ ] `backend/ai/agents/script_agent.py`, `seo_agent.py`, `thumbnail_agent.py`, `hook_agent.py`, `tags_agent.py`, `description_agent.py` — port from existing pipeline, register as parallel LangGraph nodes (Ch.07)
+  - [ ] `backend/ai/agents/review_agent.py` — port the existing grammar/fact/copyright checks; add the LLM Judge step from Ch.08
 - [ ] Wire the conditional retry edge: Review failure routes back to the specific failing Parallel agent, capped at 3 retries (Ch.04)
 - [ ] `POST /channels/{id}/generate` in FastAPI calls `graph.ainvoke(state)` (Ch.03's "How FastAPI talks to LangGraph")
 - [ ] Hardcode one channel's config in code (no database-driven config yet)

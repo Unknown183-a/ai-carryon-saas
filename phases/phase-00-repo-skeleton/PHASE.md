@@ -1,4 +1,4 @@
-<!-- Self-contained phase brief. Companion docs: ../../docs/BUILD_GUIDE.md (full build order) and ../../docs/AI-CarryON-Architecture-Document.html (the why). -->
+<!-- Self-contained phase brief. Companion docs: ../../BUILD_GUIDE.md (full build order) and ../../docs/architecture/AI-CarryON-Architecture.html (the why). -->
 
 ## Phase 0 — Repo & Skeleton
 *(SAD reference: Chapter 13 — Folder Structure)*
@@ -14,7 +14,7 @@
 - [ ] Add a root `README.md` that just links to this file and the SAD
 
 ```bash
-mkdir -p ai-carryon/{frontend,backend/{api/{routers,middleware},langgraph,agents,rag,redis,firebase,channels,monitoring,scheduler,workers,database,configs},deployment,tests,docs,docker,.github/workflows}
+mkdir -p ai-carryon/{frontend,backend/{app/{api/{routers,middleware},core,services,models,database,workers},ai/{agents,langgraph,memory,rag,prompts},platform/{channel_factory,workspace,scheduler,monitoring},integrations/{firebase,youtube,gemini,openai,groq},configs},deployment,tests,docs/architecture,docker,.github/workflows}
 cd ai-carryon && git init && git add . && git commit -m "chore: initial folder skeleton"
 ```
 

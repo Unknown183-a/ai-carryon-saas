@@ -1,3 +1,3 @@
-Owned by: **Phase 6 — multi-tenancy-channel-factory (per-channel config)**
+Owned by: **Phase 6 — multi-tenancy-channel-factory (per-channel config, encrypted provider-key storage)**
 
-See `../../phases/` (or `../phases/` if this is a top-level folder) for that phase's full brief.
+See `../../phases/` for that phase's full brief.

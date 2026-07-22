@@ -1,4 +1,4 @@
-<!-- Self-contained phase brief. Companion docs: ../../docs/BUILD_GUIDE.md (full build order) and ../../docs/AI-CarryON-Architecture-Document.html (the why). -->
+<!-- Self-contained phase brief. Companion docs: ../../BUILD_GUIDE.md (full build order) and ../../docs/architecture/AI-CarryON-Architecture.html (the why). -->
 
 ## Phase 12 — Learning Agent
 *(SAD reference: Chapter 20 — Learning Agent)*
@@ -8,7 +8,7 @@
 **Depends on:** Phase 11, and — practically — at least a few weeks of real analytics data. Don't start this phase early; it has nothing to learn from yet.
 
 **Tasks:**
-- [ ] `backend/agents/learning_agent.py` — pattern detection over each channel's own `analytics` collection (never cross-channel, per Ch.12e isolation)
+- [ ] `backend/ai/agents/learning_agent.py` — pattern detection over each channel's own `analytics` collection (never cross-channel, per Ch.12e isolation)
 - [ ] Write confirmed patterns into Qdrant's `lessons_learned` collection with `channel_id` metadata
 - [ ] Confirm the Research/Planner agents actually retrieve from `lessons_learned` on subsequent runs (closing the loop from fig 20.1)
 - [ ] Schedule this agent to run periodically via the Phase 8 scheduler mechanism
@@ -45,6 +45,6 @@ Future roadmap items (multi-platform publishing, A/B testing, Sponsor Agent, etc
 
 ## 4. Definitions, For Anyone New To The Project
 
-- **SAD** — the Software Architecture Document (`AI-CarryON-Architecture-Document.html`), the reference for *why* things are designed this way.
+- **SAD** — the Software Architecture Document (`docs/architecture/AI-CarryON-Architecture.html`), the reference for *why* things are designed this way.
 - **This file** — the build order and handoff log, for *what to actually do, and where we left off*.
 - If the two ever disagree, the SAD wins on design intent; this file wins on current build status.

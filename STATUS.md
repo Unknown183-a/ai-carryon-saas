@@ -9,7 +9,7 @@
 | **Last updated on** | _(date)_ |
 | **Blocking issue, if any** | _(none yet)_ |
 | **Next concrete action** | Run the Phase 0 setup tasks in `phases/phase-00-repo-skeleton/PHASE.md` |
-| **Latest work report** | _(none yet — see `work-reports/`)_ |
+| **Latest work report** | _(none yet — see `work-reports/daily/`)_ |
 
 ## Prerequisites checklist
 

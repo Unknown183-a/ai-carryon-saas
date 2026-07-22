@@ -1,4 +1,4 @@
-<!-- Self-contained phase brief. Companion docs: ../../docs/BUILD_GUIDE.md (full build order) and ../../docs/AI-CarryON-Architecture-Document.html (the why). -->
+<!-- Self-contained phase brief. Companion docs: ../../BUILD_GUIDE.md (full build order) and ../../docs/architecture/AI-CarryON-Architecture.html (the why). -->
 
 ## Phase 1 — Firebase Auth + Firestore
 *(SAD reference: Chapter 12 — Firebase & Firestore)*
