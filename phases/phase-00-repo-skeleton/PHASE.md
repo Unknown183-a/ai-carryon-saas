@@ -14,7 +14,7 @@
 - [ ] Add a root `README.md` that just links to this file and the SAD
 
 ```bash
-mkdir -p ai-carryon/{frontend,backend/{app/{api/{routers,middleware},core,services,models,database,workers},ai/{agents,langgraph,memory,rag,prompts},platform/{channel_factory,workspace,scheduler,monitoring},integrations/{firebase,youtube,gemini,openai,groq},configs},deployment,tests,docs/architecture,docker,.github/workflows}
+mkdir -p ai-carryon/{frontend,backend/{app/{api/{routers,middleware},core,services,models,database,workers},ai/{agents,langgraph,memory,rag,prompts,models,tools},platform/{channels,factory,workspace,scheduler,monitoring,security},integrations/{firebase,youtube,gemini,openai,groq},configs},deployment,tests,docs/{architecture,api,decisions,deployment,diagrams},docker,.github/workflows}
 cd ai-carryon && git init && git add . && git commit -m "chore: initial folder skeleton"
 ```
 
