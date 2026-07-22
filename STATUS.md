@@ -4,12 +4,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 2 — FastAPI Gateway (shell only) |
+| **Active phase** | Phase 3 — Redis (Upstash) |
 | **Last updated by** | Amit |
 | **Last updated on** | 2026-07-22 |
 | **Blocking issue, if any** | none |
-| **Next concrete action** | Begin Phase 2 — see `phases/phase-02-fastapi-gateway/PHASE.md` |
-| **Latest work report** | `work-reports/daily/2026-07-22-phase0-repo-live.md` |
+| **Next concrete action** | Begin Phase 3 — see `phases/phase-03-redis-upstash/PHASE.md` |
+| **Latest work report** | `work-reports/daily/2026-07-22-phase2-fastapi-gateway-done.md` |
 
 ## Prerequisites checklist
 

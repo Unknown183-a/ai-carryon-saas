@@ -12,7 +12,7 @@ with zero setup.
 
 - [x] Phase 00 — Repo & Skeleton
 - [x] Phase 01 — Firebase Auth + Firestore
-- [ ] Phase 02 — FastAPI Gateway
+- [x] Phase 02 — FastAPI Gateway
 - [ ] Phase 03 — Redis (Upstash)
 - [ ] Phase 04 — LangGraph, single hardcoded channel
 - [ ] Phase 05 — Qdrant + RAG
