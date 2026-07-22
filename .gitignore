@@ -20,3 +20,4 @@ build/
 
 # Docker
 *.log
+backend/configs/*.json
