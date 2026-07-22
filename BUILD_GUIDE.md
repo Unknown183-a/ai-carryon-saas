@@ -37,11 +37,11 @@ If everyone who touches this project follows that rule, no handoff call is ever 
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 0 — Repo & Skeleton |
-| **Last updated by** | _(name)_ |
-| **Last updated on** | _(date)_ |
-| **Blocking issue, if any** | _(none yet)_ |
-| **Next concrete action** | Run the Phase 0 setup commands below |
+| **Active phase**           | Phase 2 — FastAPI Gateway (shell only) |
+| **Last updated by**        | Amit                                  |
+| **Last updated on**        | 2026-07-22                            |
+| **Blocking issue, if any** | none                                  |
+| **Next concrete action**   | Begin Phase 2 — FastAPI shell + Firebase JWT verification |
 
 ---
 
@@ -126,13 +126,13 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 **Depends on:** Phase 0.
 
 **Tasks:**
-- [ ] Enable Email/Password sign-in method in Firebase console
-- [ ] Create Firestore in Native mode
-- [ ] Create empty collections: `users`, `projects`, `channels`, `videos`, `analytics`, `schedules`, `settings` (Ch.12)
-- [ ] Write `firestore.rules` enforcing `request.auth.uid` membership on every read/write (Ch.12e) — **do this now, not later**
-- [ ] Deploy rules: `firebase deploy --only firestore:rules`
-- [ ] Download service account JSON, store as `FIREBASE_SERVICE_ACCOUNT_JSON` (base64-encoded) in `.env`
-- [ ] Write a throwaway test script that: creates a test user, writes one document to `users/{uid}`, reads it back, confirms a *different* fake uid is denied by the rules
+- [x] Enable Email/Password sign-in method in Firebase console
+- [x] Create Firestore in Native mode
+- [x] Create empty collections: `users`, `projects`, `channels`, `videos`, `analytics`, `schedules`, `settings` (Ch.12)
+- [x] Write `firestore.rules` enforcing `request.auth.uid` membership on every read/write (Ch.12e) — **do this now, not later**
+- [x] Deploy rules: `firebase deploy --only firestore:rules`
+- [x] Download service account JSON, store as `FIREBASE_SERVICE_ACCOUNT_JSON` (base64-encoded) in `.env`
+- [x] Write a throwaway test script that: creates a test user, writes one document to `users/{uid}`, reads it back, confirms a *different* fake uid is denied by the rules
 
 **Definition of Done:** the throwaway test script passes, including the negative test (wrong uid is rejected).
 

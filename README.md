@@ -11,7 +11,7 @@ with zero setup.
 *(Kept in sync with `STATUS.md` — that file is the source of truth; this is just a glance.)*
 
 - [x] Phase 00 — Repo & Skeleton
-- [ ] Phase 01 — Firebase Auth + Firestore
+- [x] Phase 01 — Firebase Auth + Firestore
 - [ ] Phase 02 — FastAPI Gateway
 - [ ] Phase 03 — Redis (Upstash)
 - [ ] Phase 04 — LangGraph, single hardcoded channel

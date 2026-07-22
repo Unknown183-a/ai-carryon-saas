@@ -4,11 +4,11 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 1 — Firebase Auth + Firestore |
+| **Active phase** | Phase 2 — FastAPI Gateway (shell only) |
 | **Last updated by** | Amit |
 | **Last updated on** | 2026-07-22 |
 | **Blocking issue, if any** | none |
-| **Next concrete action** | Enable Email/Password sign-in in the Firebase console — see `phases/phase-01-firebase-auth-firestore/PHASE.md` |
+| **Next concrete action** | Begin Phase 2 — see `phases/phase-02-fastapi-gateway/PHASE.md` |
 | **Latest work report** | `work-reports/daily/2026-07-22-phase0-repo-live.md` |
 
 ## Prerequisites checklist

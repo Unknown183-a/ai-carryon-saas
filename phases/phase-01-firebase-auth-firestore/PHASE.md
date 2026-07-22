@@ -8,17 +8,17 @@
 **Depends on:** Phase 0.
 
 **Tasks:**
-- [ ] Enable Email/Password sign-in method in Firebase console
-- [ ] Create Firestore in Native mode
-- [ ] Create empty collections: `users`, `projects`, `channels`, `videos`, `analytics`, `schedules`, `settings` (Ch.12)
-- [ ] Write `firestore.rules` enforcing `request.auth.uid` membership on every read/write (Ch.12e) — **do this now, not later**
-- [ ] Deploy rules: `firebase deploy --only firestore:rules`
-- [ ] Download service account JSON, store as `FIREBASE_SERVICE_ACCOUNT_JSON` (base64-encoded) in `.env`
-- [ ] Write a throwaway test script that: creates a test user, writes one document to `users/{uid}`, reads it back, confirms a *different* fake uid is denied by the rules
+- [x] Enable Email/Password sign-in method in Firebase console
+- [x] Create Firestore in Native mode
+- [x] Create empty collections: `users`, `projects`, `channels`, `videos`, `analytics`, `schedules`, `settings` (Ch.12)
+- [x] Write `firestore.rules` enforcing `request.auth.uid` membership on every read/write (Ch.12e) — **do this now, not later**
+- [x] Deploy rules: `firebase deploy --only firestore:rules`
+- [x] Download service account JSON, store as `FIREBASE_SERVICE_ACCOUNT_JSON` (base64-encoded) in `.env`
+- [x] Write a throwaway test script that: creates a test user, writes one document to `users/{uid}`, reads it back, confirms a *different* fake uid is denied by the rules
 
 **Definition of Done:** the throwaway test script passes, including the negative test (wrong uid is rejected).
 
 **Handoff Notes:**
-> _(empty — fill in if you stop here)_
+> Phase 1 completed 2026-07-22 by Amit. Email/Password auth enabled, Firestore created in asia-south1, firestore.rules deployed enforcing uid ownership, service account key stored in .env, throwaway test script (tests/phase1_firebase_test.py) passes including the negative rules test (403 on mismatched uid).
 
 ---
