@@ -4,12 +4,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 0 — Repo & Skeleton |
-| **Last updated by** | _(name)_ |
-| **Last updated on** | _(date)_ |
-| **Blocking issue, if any** | _(none yet)_ |
-| **Next concrete action** | Run the Phase 0 setup tasks in `phases/phase-00-repo-skeleton/PHASE.md` |
-| **Latest work report** | _(none yet — see `work-reports/daily/`)_ |
+| **Active phase** | Phase 1 — Firebase Auth + Firestore |
+| **Last updated by** | Amit |
+| **Last updated on** | 2026-07-22 |
+| **Blocking issue, if any** | none |
+| **Next concrete action** | Enable Email/Password sign-in in the Firebase console — see `phases/phase-01-firebase-auth-firestore/PHASE.md` |
+| **Latest work report** | `work-reports/daily/2026-07-22-phase0-repo-live.md` |
 
 ## Prerequisites checklist
 

@@ -8,10 +8,10 @@
 **Depends on:** nothing.
 
 **Tasks:**
-- [ ] Run the skeleton command below
-- [ ] Commit with message `chore: initial folder skeleton`
-- [ ] Add `.env` to `.gitignore`, commit `.env.example` instead
-- [ ] Add a root `README.md` that just links to this file and the SAD
+- [x] Run the skeleton command below
+- [x] Commit with message `chore: initial folder skeleton`
+- [x] Add `.env` to `.gitignore`, commit `.env.example` instead
+- [x] Add a root `README.md` that just links to this file and the SAD
 
 ```bash
 mkdir -p ai-carryon/{frontend,backend/{app/{api/{routers,middleware},core,services,models,database,workers},ai/{agents,langgraph,memory,rag,prompts,models,tools},platform/{channels,factory,workspace,scheduler,monitoring,security},integrations/{firebase,youtube,gemini,openai,groq},configs},deployment,tests,docs/{architecture,api,decisions,deployment,diagrams},docker,.github/workflows}
