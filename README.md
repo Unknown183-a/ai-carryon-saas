@@ -14,6 +14,7 @@ with zero setup.
 | Understand *what to build next* and the full phase order | [`BUILD_GUIDE.md`](BUILD_GUIDE.md) |
 | See where the project currently stands | [`STATUS.md`](STATUS.md) |
 | Work on one specific phase/segment | [`phases/`](phases/) — each phase has its own self-contained `PHASE.md` |
+| Log what I actually did this session | [`work-reports/`](work-reports/) — copy `TEMPLATE.md`, one file per session, never edited after the fact |
 
 ## How this repo is organized
 
@@ -28,5 +29,6 @@ Whoever stops mid-phase, before stopping:
 1. Ticks every checkbox actually finished in that phase's `PHASE.md`.
 2. Writes 2–5 sentences in that phase's **Handoff Notes**.
 3. Updates `STATUS.md`.
+4. Adds one file to `work-reports/` for the session (copy `work-reports/TEMPLATE.md`).
 
 Follow that and no handoff call is ever needed — just open your `PHASE.md` and continue.
