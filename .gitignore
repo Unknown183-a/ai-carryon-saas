@@ -1,0 +1,22 @@
+# Env / secrets
+.env
+*.env.local
+*service-account*.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+
+# OS
+.DS_Store
+
+# Docker
+*.log
