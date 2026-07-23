@@ -4,12 +4,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 3 — Redis (Upstash) |
-| **Last updated by** | Amit |
-| **Last updated on** | 2026-07-22 |
-| **Blocking issue, if any** | none |
-| **Next concrete action** | Begin Phase 3 — see `phases/phase-03-redis-upstash/PHASE.md` |
-| **Latest work report** | `work-reports/daily/2026-07-22-phase2-fastapi-gateway-done.md` |
+| **Active phase** | Phase 4 — LangGraph, single hardcoded channel |
+| **Last updated by** | Claude |
+| **Last updated on** | 2026-07-23 |
+| **Blocking issue, if any** | Phase 3's rate limiter is only verified against a fake in-memory Upstash server — no real Upstash account exists yet (see prerequisites checklist below). Not blocking Phase 4, but re-verify against real Upstash before relying on it in production. |
+| **Next concrete action** | Begin Phase 4 — see `phases/phase-04-langgraph-core-agents/PHASE.md` |
+| **Latest work report** | `work-reports/daily/2026-07-23-phase3-redis-upstash-done.md` |
 
 ## Prerequisites checklist
 

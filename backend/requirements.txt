@@ -1,0 +1,16 @@
+# Phase 2 — FastAPI Gateway
+fastapi
+uvicorn[standard]
+pydantic
+
+# Phase 2 — Firebase Auth + Firestore
+firebase-admin
+google-cloud-firestore
+
+# Phase 3 — Redis (Upstash REST client) + rate limiter identity decoding
+httpx
+pyjwt
+
+# Shared
+python-dotenv
+requests

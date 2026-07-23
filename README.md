@@ -13,7 +13,7 @@ with zero setup.
 - [x] Phase 00 — Repo & Skeleton
 - [x] Phase 01 — Firebase Auth + Firestore
 - [x] Phase 02 — FastAPI Gateway
-- [ ] Phase 03 — Redis (Upstash)
+- [x] Phase 03 — Redis (Upstash)
 - [ ] Phase 04 — LangGraph, single hardcoded channel
 - [ ] Phase 05 — Qdrant + RAG
 - [ ] Phase 06 — Multi-Tenancy
@@ -28,7 +28,7 @@ with zero setup.
 
 ```
 Architecture   ██████████ 100%
-Backend        █░░░░░░░░░  10%   (skeleton only, no logic yet)
+Backend        ███░░░░░░░  25%   (auth + gateway + real rate limiting; no agents yet)
 Frontend       ░░░░░░░░░░   0%
 Workers        ░░░░░░░░░░   0%
 ```
