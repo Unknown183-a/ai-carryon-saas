@@ -1,0 +1,95 @@
+name: Build, Test, Deploy
+
+# Phase 9 — runs from every push, so CI protects Phase 4/5/6... work too.
+# The "deploy" job only fires on main, and only once DEPLOY_TARGET secrets exist.
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest
+
+      - name: Run tests
+        run: |
+          if [ -d tests ] && [ "$(find tests -name '*_test.py' | wc -l)" -gt 0 ]; then
+            PYTHONPATH=backend pytest tests -v
+          else
+            echo "No tests found yet — skipping."
+          fi
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    # Only build/push images from main, not from PRs.
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    # Deploy target not finalized yet (PHASE.md task: "document the choice
+    # here once made" — Cloud Run per the SAD, or Railway short-term).
+    # This job is a no-op stub until GCP_PROJECT_ID / GCP_SA_KEY (or a
+    # Railway token) are added as repo secrets — uncomment the matching
+    # block below once that decision is made.
+    steps:
+      - name: Deploy target not configured yet
+        run: |
+          echo "Image pushed to ghcr.io/${{ github.repository }}:${{ github.sha }}"
+          echo "No deploy target configured — set repo secrets and uncomment"
+          echo "the Cloud Run (or Railway) step in this workflow to go live."
+
+      # --- Cloud Run option (matches the SAD) ---
+      # - uses: google-github-actions/auth@v2
+      #   with:
+      #     credentials_json: ${{ secrets.GCP_SA_KEY }}
+      # - uses: google-github-actions/deploy-cloudrun@v2
+      #   with:
+      #     service: ai-carryon-gateway
+      #     project_id: ${{ secrets.GCP_PROJECT_ID }}
+      #     image: ghcr.io/${{ github.repository }}:${{ github.sha }}
+      #     region: asia-south1
+
+      # --- Railway option (short-term, matches old pipeline deploys) ---
+      # - uses: bervProject/railway-deploy@main
+      #   with:
+      #     railway_token: ${{ secrets.RAILWAY_TOKEN }}
+      #     service: ai-carryon-gateway
