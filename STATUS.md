@@ -6,10 +6,18 @@
 |---|---|
 | **Active phase** | Phase 4 — LangGraph, single hardcoded channel |
 | **Last updated by** | Claude |
-| **Last updated on** | 2026-07-23 |
+| **Last updated on** | 2026-07-24 |
 | **Blocking issue, if any** | Phase 3's rate limiter is only verified against a fake in-memory Upstash server — no real Upstash account exists yet (see prerequisites checklist below). Not blocking Phase 4, but re-verify against real Upstash before relying on it in production. |
-| **Next concrete action** | Begin Phase 4 — see `phases/phase-04-langgraph-core-agents/PHASE.md` |
-| **Latest work report** | `work-reports/daily/2026-07-23-phase3-redis-upstash-done.md` |
+| **Next concrete action** | Continue Phase 4 — see `phases/phase-04-langgraph-core-agents/PHASE.md`. (Side-track: Phase 9's CI/CD half is done independently — see below — pick up its remaining deploy-target task whenever.) |
+| **Latest work report** | `work-reports/daily/2026-07-24-phase9-ci-cd-live.md` |
+
+## Independent side-track: Phase 9 (CI/CD)
+
+Built out of order on purpose — Phase 9 is the one phase the guide explicitly allows starting early ("or earlier ... recommended, don't wait"). Doesn't block or get blocked by Phase 4.
+
+- [x] `docker/Dockerfile`
+- [x] `.github/workflows/deploy.yml` — test + build + push to `ghcr.io` verified green end-to-end
+- [ ] Deploy target decision (Cloud Run vs Railway) — still open, see `phases/phase-09-deployment/PHASE.md`
 
 ## Prerequisites checklist
 
