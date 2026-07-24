@@ -37,7 +37,7 @@ Workers        ░░░░░░░░░░   0%
 
 | I want to... | Go to |
 |---|---|
-| Understand *why* the system is designed this way | [`docs/architecture/AI-CarryON-Architecture.html`](docs/architecture/AI-CarryON-Architecture.html) (the SAD) |
+| Understand *why* the system is designed this way | [`docs/architecture/AI-CarryON-Architecture.html`](docs/architecture/AI-CarryON-Architecture.html) (source) · [live preview](https://htmlpreview.github.io/?https://raw.githubusercontent.com/Unknown183-a/ai-carryon-saas/main/docs/architecture/AI-CarryON-Architecture.html) |
 | Understand *what to build next* and the full phase order | [`BUILD_GUIDE.md`](BUILD_GUIDE.md) — the single working copy, edit this if the plan changes |
 | See where the project currently stands | [`STATUS.md`](STATUS.md) |
 | Work on one specific phase/segment | [`phases/`](phases/) — each phase has its own self-contained `PHASE.md` |
