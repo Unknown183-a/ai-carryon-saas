@@ -40,6 +40,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 REQUIRED_ENV_VARS = [
     "GEMINI_API_KEY",
+    "GROQ_API_KEY",  # DEFAULT_FALLBACK_CHAIN's second candidate — needed even when Gemini works, so a real fallback is actually exercisable
     "SERPER_API_KEY",
     "UPSTASH_REDIS_REST_URL",
     "UPSTASH_REDIS_REST_TOKEN",

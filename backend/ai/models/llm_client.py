@@ -9,8 +9,8 @@ one to call and normalizes the interface, per this folder's README.
 
 How a model name resolves to a provider
 ----------------------------------------
-Callers can be explicit — "gemini/gemini-1.5-flash", "groq/llama-3.3-70b-versatile"
-— or just name the bare model ("gemini-1.5-flash", "llama-3.3-70b-versatile")
+Callers can be explicit — "gemini/gemini-flash-latest", "groq/llama-3.3-70b-versatile"
+— or just name the bare model ("gemini-flash-latest", "llama-3.3-70b-versatile")
 and this module figures out the provider from well-known name patterns.
 That's the "name the model, we auto-detect the provider" behavior this
 phase asked for. Add a new provider by (1) dropping a thin client in
@@ -60,24 +60,35 @@ _KNOWN_MODEL_PREFIXES: dict[str, str] = {
 # future per-channel config). Ordered cheapest/fastest-first for the tasks
 # that don't need the strongest reasoning; the LLM Judge gets the stronger
 # model since Ch.08 treats it as the holistic quality gate.
+#
+# Deliberately using Google's auto-updating aliases ("gemini-flash-latest",
+# "gemini-pro-latest") instead of a pinned version like "gemini-1.5-flash".
+# Google retires specific Gemini model versions on a schedule — this repo
+# originally pinned "gemini-1.5-flash", which returned a live 404 the first
+# time this pipeline ran against the real API (Gemini 1.0 and 1.5 are fully
+# shut down as of when this was fixed). The aliases always resolve to
+# whatever's current, so this can't go stale the same way again — though
+# it also means behavior can shift under you when Google repoints an
+# alias; if that ever matters for reproducibility, pin an explicit
+# version instead and accept you'll need to update it periodically.
 DEFAULT_MODELS = {
-    "trend": "gemini/gemini-1.5-flash",
-    "research": "gemini/gemini-1.5-flash",
-    "planner": "gemini/gemini-1.5-flash",
-    "script": "gemini/gemini-1.5-flash",
-    "seo": "gemini/gemini-1.5-flash",
-    "thumbnail": "gemini/gemini-1.5-flash",
-    "hook": "gemini/gemini-1.5-flash",
-    "tags": "gemini/gemini-1.5-flash",
-    "description": "gemini/gemini-1.5-flash",
-    "grammar_check": "gemini/gemini-1.5-flash",
-    "fact_check": "gemini/gemini-1.5-flash",
-    "copyright_check": "gemini/gemini-1.5-flash",
-    "llm_judge": "gemini/gemini-1.5-pro",
+    "trend": "gemini/gemini-flash-latest",
+    "research": "gemini/gemini-flash-latest",
+    "planner": "gemini/gemini-flash-latest",
+    "script": "gemini/gemini-flash-latest",
+    "seo": "gemini/gemini-flash-latest",
+    "thumbnail": "gemini/gemini-flash-latest",
+    "hook": "gemini/gemini-flash-latest",
+    "tags": "gemini/gemini-flash-latest",
+    "description": "gemini/gemini-flash-latest",
+    "grammar_check": "gemini/gemini-flash-latest",
+    "fact_check": "gemini/gemini-flash-latest",
+    "copyright_check": "gemini/gemini-flash-latest",
+    "llm_judge": "gemini/gemini-pro-latest",
 }
 
 DEFAULT_FALLBACK_CHAIN = [
-    "gemini/gemini-1.5-flash",
+    "gemini/gemini-flash-latest",
     "groq/llama-3.3-70b-versatile",
 ]
 
@@ -127,6 +138,7 @@ def call_llm(
     """
     candidates = [model] + [m for m in (fallback_models or DEFAULT_FALLBACK_CHAIN) if m != model]
 
+    errors_by_candidate: dict[str, str] = {}
     last_error: Optional[Exception] = None
     for candidate in candidates:
         try:
@@ -142,9 +154,16 @@ def call_llm(
         except Exception as exc:  # noqa: BLE001 — deliberately broad: any
             # provider failure (bad key, rate limit, outage, bad model name)
             # should fall through to the next candidate, not crash the run.
+            # Every candidate's error is captured below so the eventual
+            # RuntimeError shows *why each one* failed, not just the last —
+            # a real Gemini 404 (model retired) was previously getting
+            # masked by a downstream Groq "missing API key" error, which
+            # made the real problem take much longer to find than it should.
+            errors_by_candidate[candidate] = f"{type(exc).__name__}: {exc}"
             last_error = exc
             continue
 
+    details = "\n".join(f"  - {c}: {e}" for c, e in errors_by_candidate.items())
     raise RuntimeError(
-        f"All LLM candidates failed for original model '{model}': {candidates}"
+        f"All LLM candidates failed for original model '{model}':\n{details}"
     ) from last_error
