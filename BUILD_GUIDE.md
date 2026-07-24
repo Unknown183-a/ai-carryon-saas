@@ -171,10 +171,10 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 **Depends on:** Phase 2.
 
 **Tasks:**
-- [ ] `backend/app/core/redis_client.py` — thin wrapper around Upstash REST client with `get`, `set`, `incr`, TTL support
-- [ ] Wire real rate limiting into `backend/app/api/middleware/rate_limit.py` using key prefix `rl:*` (Ch.11 table) and a 60-second TTL
-- [ ] Confirm the 429 response fires after the configured request budget is exceeded
-- [ ] Leave the namespacing (`ch:{channel_id}:*`) as a TODO comment — real multi-tenant namespacing happens in Phase 6, don't build it early
+- [x] `backend/app/core/redis_client.py` — thin wrapper around Upstash REST client with `get`, `set`, `incr`, TTL support
+- [x] Wire real rate limiting into `backend/app/api/middleware/rate_limit.py` using key prefix `rl:*` (Ch.11 table) and a 60-second TTL
+- [x] Confirm the 429 response fires after the configured request budget is exceeded
+- [x] Leave the namespacing (`ch:{channel_id}:*`) as a TODO comment — real multi-tenant namespacing happens in Phase 6, don't build it early
 
 **Definition of Done:** hammering the `/health` endpoint past the rate limit returns `429`; waiting past the TTL resets it.
 
@@ -193,18 +193,18 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 **Depends on:** Phase 3 (agents will use Redis caching).
 
 **Tasks:**
-- [ ] Install LangGraph: `pip install langgraph`
-- [ ] `backend/ai/langgraph/graph.py` — define the `StateGraph` with the node sequence from Ch.04's diagram
-- [ ] `backend/ai/langgraph/state.py` — the shared state schema (topic, research_summary, planner_json, per-agent outputs)
-- [ ] Port existing `agents_cricket`/`agents_hindi` logic into `backend/ai/agents/`:
-  - [ ] `backend/ai/agents/trend_agent.py` — reuse existing Google Trends logic, wrap Redis caching (`trend:*`, Ch.11)
-  - [ ] `backend/ai/agents/research_agent.py` — reuse existing research logic; RAG/Qdrant wiring deferred to Phase 5, use plain web search for now
-  - [ ] `backend/ai/agents/planner_agent.py` — new: outputs the JSON contract from Ch.06
-  - [ ] `backend/ai/agents/script_agent.py`, `seo_agent.py`, `thumbnail_agent.py`, `hook_agent.py`, `tags_agent.py`, `description_agent.py` — port from existing pipeline, register as parallel LangGraph nodes (Ch.07)
-  - [ ] `backend/ai/agents/review_agent.py` — port the existing grammar/fact/copyright checks; add the LLM Judge step from Ch.08
-- [ ] Wire the conditional retry edge: Review failure routes back to the specific failing Parallel agent, capped at 3 retries (Ch.04)
-- [ ] `POST /channels/{id}/generate` in FastAPI calls `graph.ainvoke(state)` (Ch.03's "How FastAPI talks to LangGraph")
-- [ ] Hardcode one channel's config in code (no database-driven config yet)
+- [x] Install LangGraph: `pip install langgraph`
+- [x] `backend/ai/langgraph/graph.py` — define the `StateGraph` with the node sequence from Ch.04's diagram
+- [x] `backend/ai/langgraph/state.py` — the shared state schema (topic, research_summary, planner_json, per-agent outputs)
+- [x] Built fresh (no `agents_cricket`/`agents_hindi` code existed to port):
+  - [x] `backend/ai/agents/trend_agent.py` — Google Trends via pytrends, wraps Redis caching (`trend:*`, Ch.11)
+  - [x] `backend/ai/agents/research_agent.py` — web search (Serper) + LLM grounding; RAG/Qdrant wiring deferred to Phase 5
+  - [x] `backend/ai/agents/planner_agent.py` — outputs the JSON contract from Ch.06
+  - [x] `backend/ai/agents/script_agent.py`, `seo_agent.py`, `thumbnail_agent.py`, `hook_agent.py`, `tags_agent.py`, `description_agent.py` — registered as parallel LangGraph nodes (Ch.07)
+  - [x] `backend/ai/agents/review_agent.py` — grammar/fact/copyright checks in order, plus the LLM Judge step from Ch.08
+- [x] Wire the conditional retry edge: Review failure routes back to the specific failing Parallel agent, capped at 3 retries (Ch.04)
+- [x] `POST /channels/{id}/generate` in FastAPI calls `graph.ainvoke(state)` (Ch.03's "How FastAPI talks to LangGraph")
+- [x] Hardcode one channel's config in code (no database-driven config yet)
 
 **Definition of Done:** calling `POST /channels/{id}/generate` end-to-end produces a reviewed script + SEO + thumbnail brief in the response, and a forced Review failure demonstrably retries the correct single agent, not all six.
 

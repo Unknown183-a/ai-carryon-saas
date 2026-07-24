@@ -4,16 +4,16 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 4 — LangGraph, single hardcoded channel |
+| **Active phase** | Phase 5 — Qdrant + RAG |
 | **Last updated by** | Claude |
 | **Last updated on** | 2026-07-24 |
-| **Blocking issue, if any** | Phase 3's rate limiter is only verified against a fake in-memory Upstash server — no real Upstash account exists yet (see prerequisites checklist below). Not blocking Phase 4, but re-verify against real Upstash before relying on it in production. |
-| **Next concrete action** | Continue Phase 4 — see `phases/phase-04-langgraph-core-agents/PHASE.md`. (Side-track: Phase 9's CI/CD half is done independently — see below — pick up its remaining deploy-target task whenever.) |
-| **Latest work report** | `work-reports/daily/2026-07-24-phase9-ci-cd-live.md` |
+| **Blocking issue, if any** | Phase 4's pipeline is only verified with Gemini/Groq/Serper/Google Trends all faked in-process — real network egress to those services hasn't been exercised yet from this environment. Not blocking Phase 5, but run `POST /channels/ai_carryon/generate` for real (real keys, real Firebase auth) and read the actual output quality before trusting it beyond local dev. See `phases/phase-04-langgraph-core-agents/PHASE.md`'s handoff notes for full detail — also carrying forward Phase 3's still-open item: no real Upstash account has been created/tested against yet either. |
+| **Next concrete action** | Begin Phase 5 — see `phases/phase-05-qdrant-rag/PHASE.md`. (Side-track: Phase 9's CI/CD half is done independently — see below — pick up its remaining deploy-target task whenever.) |
+| **Latest work report** | `work-reports/daily/2026-07-24-phase4-langgraph-core-agents-done.md` (mainline) and `work-reports/daily/2026-07-24-phase9-ci-cd-live.md` (independent side-track) |
 
 ## Independent side-track: Phase 9 (CI/CD)
 
-Built out of order on purpose — Phase 9 is the one phase the guide explicitly allows starting early ("or earlier ... recommended, don't wait"). Doesn't block or get blocked by Phase 4.
+Built out of order on purpose — Phase 9 is the one phase the guide explicitly allows starting early ("or earlier ... recommended, don't wait"). Doesn't block or get blocked by Phase 4/5.
 
 - [x] `docker/Dockerfile`
 - [x] `.github/workflows/deploy.yml` — test + build + push to `ghcr.io` verified green end-to-end
@@ -23,15 +23,17 @@ Built out of order on purpose — Phase 9 is the one phase the guide explicitly 
 
 Copied from `BUILD_GUIDE.md` §2 — do these once, up front, regardless of which phase you're on:
 
-- [ ] GitHub repo created (private is fine to start)
-- [ ] Firebase project created — console.firebase.google.com (Spark/free plan)
+- [x] GitHub repo created (private is fine to start)
+- [x] Firebase project created — console.firebase.google.com (Spark/free plan)
 - [ ] Upstash account for Redis — upstash.com (free tier, REST-based)
 - [ ] Qdrant Cloud account — cloud.qdrant.io (free 1GB cluster)
-- [ ] Gemini API key — aistudio.google.com
+- [x] Gemini API key — aistudio.google.com
 - [ ] (Optional, can defer) Google Cloud project for Cloud Run / Cloud Tasks / Cloud Scheduler
 - [ ] (Optional, can defer) ElevenLabs API key for voice
 - [ ] YouTube Data API OAuth credentials — console.cloud.google.com
 - [ ] Python 3.11+
+- [x] Groq API key — console.groq.com *(this checklist predates Phase 4; add it to BUILD_GUIDE.md §2 next time it's edited)*
+- [x] Serper.dev API key — serper.dev *(same note — used for the Research Agent's web search, not originally listed here either)*
 - [ ] Node 20+
 - [ ] Docker Desktop (only needed from Phase 9 onward)
 

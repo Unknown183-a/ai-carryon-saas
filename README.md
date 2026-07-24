@@ -14,7 +14,7 @@ with zero setup.
 - [x] Phase 01 — Firebase Auth + Firestore
 - [x] Phase 02 — FastAPI Gateway
 - [x] Phase 03 — Redis (Upstash)
-- [ ] Phase 04 — LangGraph, single hardcoded channel
+- [x] Phase 04 — LangGraph, single hardcoded channel
 - [ ] Phase 05 — Qdrant + RAG
 - [ ] Phase 06 — Multi-Tenancy
 - [ ] Phase 07 — Async Workers
@@ -28,7 +28,7 @@ with zero setup.
 
 ```
 Architecture   ██████████ 100%
-Backend        ███░░░░░░░  25%   (auth + gateway + real rate limiting; no agents yet)
+Backend        █████░░░░░  40%   (auth + gateway + rate limiting + core AI pipeline; no RAG/multi-tenancy yet)
 Frontend       ░░░░░░░░░░   0%
 Workers        ░░░░░░░░░░   0%
 ```

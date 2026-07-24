@@ -11,6 +11,12 @@ google-cloud-firestore
 httpx
 pyjwt
 
+# Phase 4 — LangGraph agents, LLM providers, trends, web search
+langgraph
+google-genai
+groq
+pytrends
+
 # Shared
 python-dotenv
 requests

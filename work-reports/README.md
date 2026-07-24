@@ -46,6 +46,8 @@ Then, in the same commit, also update `STATUS.md` and the relevant phase's `PHAS
 
 | Date | Tier | Phase | Summary | File |
 |---|---|---|---|---|
+| 2026-07-24 | milestone | Phase 4 | Full LangGraph pipeline (9 agents) shipped, verified against faked externals | `milestones/2026-07-24-phase4-done.md` |
+| 2026-07-24 | daily | Phase 4 | LangGraph core agents built and tested; real API keys not yet exercised | `daily/2026-07-24-phase4-langgraph-core-agents-done.md` |
 | 2026-07-23 | milestone | Phase 3 | Redis client + real rate limiter, verified against fake Upstash | `milestones/2026-07-23-phase3-done.md` |
 | 2026-07-23 | daily | Phase 3 | Redis client + real rate limiter shipped and tested | `daily/2026-07-23-phase3-redis-upstash-done.md` |
 | 2026-07-22 | daily | Phase 0 | Scaffold restructured, pushed to GitHub | `daily/2026-07-22-phase0-repo-live.md` |
