@@ -73,19 +73,41 @@ class QdrantClient:
         response.raise_for_status()
         return True
 
+    def create_payload_index(self, collection: str, field_name: str, field_schema: str = "keyword") -> None:
+        """Creates a payload index on `field_name` so it can be used in a
+        query filter. Qdrant Cloud rejects any filter on an un-indexed
+        field with a 400 ("Index required but not found") — this was
+        caught by a real run against a real cluster, not by the faked
+        test server, which didn't enforce this. Idempotent: calling this
+        again on an already-indexed field is a harmless no-op per
+        Qdrant's own API (it returns success either way).
+        """
+        response = self._client.put(
+            f"/collections/{collection}/index",
+            json={"field_name": field_name, "field_schema": field_schema},
+        )
+        response.raise_for_status()
+
     def ensure_collection(self, name: str, vector_size: int, distance: str = "Cosine") -> None:
         """Creates `name` with the given vector size/distance if it
         doesn't already exist. Safe to call every process start — this is
         what backend/ai/rag/collections.py's `ensure_collections()` calls
         for each of the nine Ch.10 collections.
+
+        Always also ensures a `channel_id` payload index exists (see
+        `create_payload_index`), whether the collection is newly created
+        or already existed — every collection this project creates is
+        queried with a mandatory `channel_id` filter (Ch.12e isolation,
+        via `channel_filter()`), so the index isn't optional.
         """
-        if self.collection_exists(name):
-            return
-        response = self._client.put(
-            f"/collections/{name}",
-            json={"vectors": {"size": vector_size, "distance": distance}},
-        )
-        response.raise_for_status()
+        if not self.collection_exists(name):
+            response = self._client.put(
+                f"/collections/{name}",
+                json={"vectors": {"size": vector_size, "distance": distance}},
+            )
+            response.raise_for_status()
+
+        self.create_payload_index(name, "channel_id", field_schema="keyword")
 
     def upsert(self, collection: str, points: list[dict[str, Any]]) -> None:
         """`points`: list of {"id": str|int, "vector": [float,...], "payload": {...}}."""

@@ -141,6 +141,16 @@ class FakeQdrant:
             self.collections.setdefault(name, [])
             return httpx.Response(200, json={"result": True})
 
+        m = re.fullmatch(r"/collections/([^/]+)/index", path)
+        if m and method == "PUT":
+            # Real Qdrant requires an explicit payload index before filtering
+            # on a field (caught for real against a live cluster, not by this
+            # fake — see qdrant_client.py's create_payload_index docstring).
+            # The fake doesn't need to enforce that requirement itself, just
+            # accept the call so ensure_collection()'s index-creation step
+            # doesn't fail here the way it would on an unhandled route.
+            return httpx.Response(200, json={"result": True})
+
         m = re.fullmatch(r"/collections/([^/]+)/points", path)
         if m and method == "PUT":
             name = m.group(1)
