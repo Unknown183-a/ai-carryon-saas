@@ -8,11 +8,15 @@ Phase 3: rate limiting is now real, backed by Redis (Upstash) — see
 app/api/middleware/rate_limit.py.
 """
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware.rate_limit import RateLimitMiddleware
 from app.api.routers import channels
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AI CarryON Gateway", version="0.1.0")
 
@@ -31,6 +35,25 @@ app.add_middleware(
 app.add_middleware(RateLimitMiddleware)
 
 app.include_router(channels.router)
+
+
+@app.on_event("startup")
+def _ensure_qdrant_collections() -> None:
+    """Phase 5: idempotently creates the nine Ch.10 Qdrant collections if
+    they don't exist yet. Logged and swallowed rather than raised — an
+    unreachable/unconfigured Qdrant shouldn't prevent the API from
+    starting (e.g. local dev without QDRANT_URL set yet); the Research
+    Agent already degrades to web-search-only if Qdrant is unavailable
+    at request time (see research_agent.py's module docstring).
+    """
+    from ai.rag.collections import ensure_collections
+
+    try:
+        created = ensure_collections()
+        if created:
+            logger.info("Qdrant collections created: %s", created)
+    except Exception as exc:  # noqa: BLE001 — startup must not crash on this
+        logger.warning("Could not ensure Qdrant collections at startup: %s", exc)
 
 
 @app.get("/health")

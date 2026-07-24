@@ -1,0 +1,78 @@
+"""
+The nine Qdrant collections from Ch.10 of the SAD, in one place.
+
+Every collection shares the same vector size (EMBEDDING_DIM, matching
+`output_dimensionality` in integrations/gemini/client.py's `embed()`) and
+distance metric — Qdrant collections are cheap, and having every one of
+them shaped the same way means one `ensure_collections()` call handles
+all nine instead of nine bespoke creation calls.
+
+The `example_metadata` values here are documentation, not schema
+enforcement — Qdrant doesn't require a fixed payload shape per
+collection. They're taken verbatim from Ch.10's table so anyone reading
+this file doesn't have to cross-reference the SAD to know what belongs
+in a given collection's payload.
+"""
+
+from __future__ import annotations
+
+from app.core.qdrant_client import QdrantClient, get_qdrant
+
+EMBEDDING_DIM = 768  # must match integrations/gemini/client.py's embed() output_dimensionality
+DISTANCE_METRIC = "Cosine"
+
+# name -> (what it stores, example metadata keys) — straight from Ch.10's table.
+COLLECTIONS: dict[str, dict[str, str]] = {
+    "scripts": {
+        "stores": "Past video scripts, embedded in full",
+        "example_metadata": "channel_id, video_id, views",
+    },
+    "research": {
+        "stores": "Research summaries per topic",
+        "example_metadata": "channel_id, topic, source_urls, date",
+    },
+    "comments": {
+        "stores": "Aggregated viewer comment themes",
+        "example_metadata": "channel_id, video_id, sentiment",
+    },
+    "viewer_feedback": {
+        "stores": "Structured feedback signals",
+        "example_metadata": "channel_id, video_id, retention_drop_ts",
+    },
+    "competitors": {
+        "stores": "Rival channels' titles & hooks",
+        "example_metadata": "channel_id, competitor_channel, niche",
+    },
+    "analytics": {
+        "stores": "Per-video performance embeddings",
+        "example_metadata": "channel_id, ctr, avg_view_duration",
+    },
+    "knowledge": {
+        "stores": "General domain knowledge base",
+        "example_metadata": "channel_id, domain, confidence",
+    },
+    "prompt_history": {
+        "stores": "Prior prompts and their outcomes",
+        "example_metadata": "channel_id, agent_name, success",
+    },
+    "lessons_learned": {
+        "stores": "Learning Agent's distilled patterns",
+        "example_metadata": "channel_id, pattern, confidence",
+    },
+}
+
+
+def ensure_collections(client: QdrantClient | None = None) -> list[str]:
+    """Creates every collection in COLLECTIONS that doesn't already
+    exist. Idempotent — safe to call on every process start (this is
+    wired into FastAPI's startup in app/api/main.py). Returns the list
+    of collection names actually created this call (empty on a
+    warm/already-provisioned Qdrant instance).
+    """
+    client = client or get_qdrant()
+    created = []
+    for name in COLLECTIONS:
+        if not client.collection_exists(name):
+            client.ensure_collection(name, vector_size=EMBEDDING_DIM, distance=DISTANCE_METRIC)
+            created.append(name)
+    return created

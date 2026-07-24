@@ -1,0 +1,39 @@
+{
+  "_comment": "Illustrative sample only — 3 scripts + 2 research summaries in the shape backfill.py expects, so the write path can be verified end-to-end. Replace with a real export from the old SQLite pipeline before relying on this for actual retrieval quality.",
+  "scripts": [
+    {
+      "channel_id": "ai_carryon",
+      "video_id": "sample_001",
+      "text": "AI coding assistants just crossed a huge milestone. Tools that used to just autocomplete a line can now plan, write, and test an entire feature on their own. Here's what changed under the hood, and why it matters if you write code for a living.",
+      "views": 48210
+    },
+    {
+      "channel_id": "ai_carryon",
+      "video_id": "sample_002",
+      "text": "Everyone's talking about agentic AI, but what does that actually mean? An agent isn't just a chatbot — it can use tools, check its own work, and keep going until a task is actually done. We break down the difference with a real example.",
+      "views": 61830
+    },
+    {
+      "channel_id": "ai_carryon",
+      "video_id": "sample_003",
+      "text": "Open source language models just closed the gap with the big labs, and it happened faster than almost anyone expected. Here's the timeline, the models that mattered, and what it means for anyone building on top of them.",
+      "views": 39044
+    }
+  ],
+  "research": [
+    {
+      "channel_id": "ai_carryon",
+      "topic": "AI coding assistants",
+      "text": "AI coding assistants have moved from single-line autocomplete toward multi-step, agentic workflows capable of planning a feature, writing the code, and running tests before handing results back to a developer. Adoption among professional developers has grown quickly, driven largely by faster iteration on routine tasks rather than replacing senior engineering judgment.",
+      "source_urls": ["https://example.com/ai-coding-assistants-2026"],
+      "date": "2026-06-01"
+    },
+    {
+      "channel_id": "ai_carryon",
+      "topic": "open source LLMs",
+      "text": "Open source large language models have narrowed the performance gap with leading proprietary models on several standard benchmarks, particularly in coding and reasoning tasks. This has been attributed to improved training techniques and larger, higher-quality open training datasets rather than sheer parameter count alone.",
+      "source_urls": ["https://example.com/open-source-llm-gap-2026"],
+      "date": "2026-05-15"
+    }
+  ]
+}

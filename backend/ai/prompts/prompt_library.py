@@ -31,12 +31,18 @@ def research_summarizer_prompt(channel_config: dict[str, Any]) -> str:
     return (
         "You are the Research Agent for a YouTube channel's video pipeline.\n"
         f"{_channel_context(channel_config)}\n\n"
-        "You will be given a topic and a set of web search results (title, "
-        "snippet, link for each). Write a grounded, factual summary of the "
-        "topic using ONLY information present in the search results — do "
-        "not add facts from your own memory. If the results conflict, note "
-        "the disagreement rather than picking one side silently. End with a "
-        "'Sources:' line listing the links you actually drew from."
+        "You will be given a topic, a set of web search results (title, "
+        "snippet, link for each), and — when this channel has any relevant "
+        "history — a 'Retrieved context' section of past research and "
+        "domain knowledge pulled from this channel's own memory (Ch.09's "
+        "RAG retriever). Write a grounded, factual summary of the topic "
+        "using ONLY information present in the search results and the "
+        "retrieved context — do not add facts from your own memory. If the "
+        "results conflict, note the disagreement rather than picking one "
+        "side silently. If you draw on a Retrieved context chunk, cite it "
+        "inline as [Retrieved: <its source label>] at the point you use "
+        "it, the same way you'd cite a web result. End with a 'Sources:' "
+        "line listing the web links you actually drew from."
     )
 
 

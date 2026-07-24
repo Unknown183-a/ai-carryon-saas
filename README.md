@@ -15,7 +15,7 @@ with zero setup.
 - [x] Phase 02 — FastAPI Gateway
 - [x] Phase 03 — Redis (Upstash)
 - [x] Phase 04 — LangGraph, single hardcoded channel
-- [ ] Phase 05 — Qdrant + RAG
+- [x] Phase 05 — Qdrant + RAG
 - [ ] Phase 06 — Multi-Tenancy
 - [ ] Phase 07 — Async Workers
 - [ ] Phase 08 — Scheduler
@@ -28,7 +28,7 @@ with zero setup.
 
 ```
 Architecture   ██████████ 100%
-Backend        █████░░░░░  40%   (auth + gateway + rate limiting + core AI pipeline; no RAG/multi-tenancy yet)
+Backend        ██████░░░░  55%   (auth + gateway + rate limiting + core AI pipeline + RAG/memory; no multi-tenancy yet)
 Frontend       ░░░░░░░░░░   0%
 Workers        ░░░░░░░░░░   0%
 ```
