@@ -67,19 +67,27 @@ def generate(
 
 def embed(
     text: str,
-    model: str = "gemini-embedding-001",
+    model: str = "gemini-embedding-2",
     task_type: str = "RETRIEVAL_DOCUMENT",
     output_dimensionality: int = 768,
 ) -> list[float]:
     """Returns a single embedding vector for `text` via Gemini's
     `embed_content` endpoint (Ch.09/Ch.10 — RAG/Qdrant, added Phase 5).
 
+    Default model is "gemini-embedding-2", not the older
+    "gemini-embedding-001" — that one's official shutdown date was July
+    14, 2026, which had already passed by the time this was checked
+    (July 25, 2026). Same failure mode as the gemini-1.5-flash/pro
+    retirement caught in Phase 4: a pinned model name silently going
+    dead. Caught this time by checking Google's deprecation table before
+    a real run, not by hitting a live 404 first.
+
     `output_dimensionality=768` is a deliberate choice, not the model's
     default (3072): it keeps Qdrant collection storage/search cost down,
     and 768 is one of the officially supported Matryoshka truncation
-    sizes for gemini-embedding-001, so quality loss is minimal. If this
-    ever changes, every existing Qdrant collection needs re-embedding —
-    the vector size is fixed per-collection at creation time (see
+    sizes for this model, so quality loss is minimal. If this ever
+    changes, every existing Qdrant collection needs re-embedding — the
+    vector size is fixed per-collection at creation time (see
     backend/ai/rag/collections.py's EMBEDDING_DIM).
 
     `task_type="RETRIEVAL_DOCUMENT"` is right for text being stored for
