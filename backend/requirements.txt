@@ -20,6 +20,15 @@ pytrends
 # Phase 6 — multi-tenancy: provider-key encryption at rest (Ch.12d)
 cryptography
 
+# Phase 7 — async workers (Ch.15): task queue, thumbnail rendering,
+# video rendering (shells out to the real ffmpeg binary — not a pip
+# package, see docker/Dockerfile), YouTube upload
+celery[redis]
+Pillow
+google-api-python-client
+google-auth
+google-auth-oauthlib
+
 # Shared
 python-dotenv
 requests

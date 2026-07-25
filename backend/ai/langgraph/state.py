@@ -70,6 +70,17 @@ class PipelineState(TypedDict, total=False):
     # never populates this field itself.
     force_fail_agent: Optional[str]
 
+    # ── Async render chain hand-off (Ch.15, Phase 7) ───────────────────
+    # Set by graph.py's `_enqueue_render` terminal node on a passing
+    # review. `render_task_id` is the Celery chain's AsyncResult id — a
+    # caller can poll it (or a future status endpoint can) independently
+    # of this graph run, which has already ended by the time these are
+    # set. Never populated for a run whose review_verdict is "fail"; see
+    # `_route_after_review`'s "nothing to render for a script that never
+    # passed review."
+    render_task_id: Optional[str]
+    render_status: Optional[str]  # "enqueued" — chain progress itself lives in Celery's own result backend, not here
+
     # ── Terminal status ─────────────────────────────────────────────────
     status: str  # "running" | "reviewed" | "failed"
     failure_reason: Optional[str]

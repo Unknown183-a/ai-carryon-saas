@@ -402,6 +402,43 @@ def fake_web_search(query, num_results=5, timeout=10.0):
 research_agent_module.web_search = fake_web_search
 
 
+# ── Updated in Phase 7 ───────────────────────────────────────────────────
+# POST /generate now enqueues a real Celery chain on a passing review
+# (graph.py's new `enqueue_render` node) instead of the run just ending.
+# This file cares about multi-tenant isolation and permission checks
+# (Ch.12), not the render pipeline itself — that's
+# tests/phase7_async_workers_test.py's job — so run Celery in eager mode
+# with the four worker tasks' external calls faked, same doubles as
+# Phase 7's own test and phase4_langgraph_test.py's Phase 7 update,
+# rather than force this file to need a live Redis broker.
+os.environ.setdefault("CELERY_BROKER_URL", "redis://localhost:6379/0")
+os.environ.setdefault("WORKER_OUTPUT_DIR", "/tmp/ai_carryon_phase6_test")
+from app.workers.celery_app import celery_app  # noqa: E402
+
+celery_app.conf.task_always_eager = True
+celery_app.conf.task_eager_propagates = True
+
+import app.workers.render_worker as _render_worker_module  # noqa: E402
+import app.workers.upload_worker as _upload_worker_module  # noqa: E402
+import app.workers.voice_worker as _voice_worker_module  # noqa: E402
+
+
+class _FakeCompletedProcess:
+    returncode = 0
+
+
+def _fake_ffmpeg_run(command, check=True, capture_output=True, timeout=None):
+    with open(command[-1], "wb") as f:
+        f.write(b"fake-mp4-for-phase6-test")
+    return _FakeCompletedProcess()
+
+
+_voice_worker_module.generate_speech = lambda *a, **k: b"fake-mp3-for-phase6-test"
+_render_worker_module.subprocess.run = _fake_ffmpeg_run
+_upload_worker_module.upload_video = lambda **k: "fake_video_id_phase6_test"
+_upload_worker_module._channel_youtube_token = lambda channel_id: None
+
+
 # ── App setup: Firestore + auth faked, auth reads a per-request test header
 # so different TestClient calls can act as different users ─────────────────
 from app.api.main import app  # noqa: E402

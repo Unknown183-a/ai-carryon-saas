@@ -8,6 +8,14 @@ channel-scoped route goes through the Ch.12e Permission Check
 (`require_channel_access`) before touching anything else — a request for
 a channel outside the caller's workspace is rejected there, never
 reaching LangGraph or any other downstream service.
+
+Phase 7: a passing review no longer ends the run silently — the graph's
+new `enqueue_render` terminal node (Ch.15) hands off to the async worker
+chain and the response now includes `render_task_id` /
+`render_status` so the caller can tell "reviewed, and a video is being
+rendered/uploaded in the background" apart from "reviewed" alone. Both
+are `None` for a run whose `review_verdict` is `"fail"` — nothing was
+enqueued, per graph.py's own routing.
 """
 
 from __future__ import annotations
@@ -74,9 +82,13 @@ async def generate_video(
     channel_doc: dict = Depends(require_channel_access),
     user: dict = Depends(get_current_user),
 ):
-    """Runs the full Trend -> Research -> Planner -> Parallel(6) -> Review
-    pipeline for one channel and returns the reviewed script + SEO +
-    thumbnail brief.
+    """Runs the full Trend -> Research -> Planner -> Parallel(6) ->
+    Review pipeline for one channel and returns the reviewed script +
+    SEO + thumbnail brief — plus, on a passing review, the async render
+    chain's task id (Ch.15, Phase 7): rendering and uploading continue
+    in the background after this endpoint has already returned, so
+    `render_task_id`/`render_status` describe work still in flight, not
+    work already finished.
 
     `require_channel_access` has already run the full Ch.12e chain
     (resolved the channel, resolved its workspace, confirmed the caller's
@@ -107,4 +119,6 @@ async def generate_video(
         "review_verdict": final_state.get("review_verdict"),
         "review_findings": final_state.get("review_findings"),
         "failure_reason": final_state.get("failure_reason"),
+        "render_task_id": final_state.get("render_task_id"),
+        "render_status": final_state.get("render_status"),
     }

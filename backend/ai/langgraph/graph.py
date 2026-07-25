@@ -1,6 +1,7 @@
 """
 LangGraph StateGraph — Trend -> Research -> Planner -> Parallel(6) ->
-Review, with a conditional retry edge (Ch.04's fig 4.1).
+Review, with a conditional retry edge (Ch.04's fig 4.1), terminating in
+an async render/upload hand-off on a passing review (Ch.15, Phase 7).
 
 A LangGraph implementation note that shaped this file's structure, worth
 reading before touching the retry wiring:
@@ -27,6 +28,16 @@ only the failing one does real (expensive) work. This is verified by
 tests/phase4_langgraph_test.py, which asserts the real-work call count
 per agent, not just that the response looks right.
 --------------------------------------------------------------------------
+
+Phase 7 addition — `enqueue_render`: per Ch.15's fig 15.1
+("fire-and-track, not fire-and-forget"), a passing review no longer ends
+the run directly. It routes through one more node whose only job is to
+hand the reviewed outputs to the Celery worker chain
+(voice -> thumbnail -> render -> upload) and return immediately — see
+that node's own docstring below for why the import is deliberately
+local to the function, not at module scope. A failed run (retry cap
+exceeded) still routes straight to END — there's nothing to render for
+a script that never passed review.
 """
 
 from __future__ import annotations
@@ -63,12 +74,73 @@ async def _retry_dispatch(state: dict) -> dict:
     return {"run_log": ["ran:retry_dispatch"]}
 
 
+async def _enqueue_render(state: dict) -> dict:
+    """Terminal node (Ch.15, Phase 7): hands the reviewed outputs to the
+    async worker chain (voice -> thumbnail -> render -> upload) instead
+    of rendering/uploading on the request thread, and returns
+    immediately — fig 15.1's "fire-and-track, not fire-and-forget", NOT
+    "wait for the chain to finish before ending the graph run." A full
+    render+upload can take minutes (Ch.15's own duration table);
+    blocking `graph.ainvoke()` on that would silently reintroduce the
+    exact problem this phase exists to remove, just one layer further
+    in. `render_task_id` is returned so a caller (or a future status-
+    polling endpoint / WS, Ch.03) can track the chain's progress
+    separately from the pipeline run itself.
+
+    The `app.workers.*` imports are deliberately LOCAL to this function,
+    not at module top, for one concrete reason: every test in this
+    project already imports `ai.langgraph.graph` (directly or via
+    `app.api.routers.channels`), including Phase 4/5/6's suites, which
+    have no interest in Celery or a Redis broker connection at all.
+    Importing `app.workers.celery_app` at module scope would make
+    `CELERY_BROKER_URL` a required env var just to BUILD the graph
+    object, breaking every earlier phase's test for a dependency they
+    never asked for. Only a run that actually reaches this node —
+    i.e. one that passed review — needs the worker chain to be
+    importable/configured at all.
+    """
+    from celery import chain
+
+    from app.workers.render_worker import render_video
+    from app.workers.thumbnail_worker import generate_thumbnail
+    from app.workers.upload_worker import upload_to_youtube
+    from app.workers.voice_worker import generate_voice
+
+    channel_config = state.get("channel_config") or {}
+    render_payload = {
+        "channel_id": state["channel_id"],
+        "run_id": state["run_id"],
+        "channel_config": channel_config,
+        "script": state.get("script"),
+        "voice_profile": channel_config.get("voice_profile"),
+        "thumbnail_brief": state.get("thumbnail_brief"),
+        "seo": state.get("seo"),
+        "tags": state.get("tags"),
+        "description": state.get("description"),
+    }
+
+    render_chain = chain(
+        generate_voice.s(render_payload),
+        generate_thumbnail.s(),
+        render_video.s(),
+        upload_to_youtube.s(),
+    )
+    async_result = render_chain.apply_async()
+
+    return {
+        "render_task_id": async_result.id,
+        "render_status": "enqueued",
+        "run_log": ["ran:enqueue_render"],
+    }
+
+
 def _route_after_review(state: dict) -> str:
     if state.get("review_verdict") == "pass":
-        return END
+        return "enqueue_render"
     if state.get("status") == "failed":
         # Retry cap exceeded (review_agent.py already set retry_target=None
         # in this case) — nothing left to do but end the run as failed.
+        # Nothing to render for a script that never passed review.
         return END
     return "retry_dispatch"
 
@@ -83,6 +155,7 @@ def build_graph():
         graph.add_node(name, node_fn)
     graph.add_node("review", review_node)
     graph.add_node("retry_dispatch", _retry_dispatch)
+    graph.add_node("enqueue_render", _enqueue_render)
 
     # Sequential prefix (Ch.04: "Trend -> Research -> Planner run strictly
     # in order; each depends on the previous node's output.")
@@ -97,15 +170,17 @@ def build_graph():
     # Fan-in: review only fires once all six have completed this round.
     graph.add_edge(list(PARALLEL_AGENT_NAMES), "review")
 
-    # Conditional edge (Ch.04/Ch.08): pass -> END, fail -> retry_dispatch,
-    # which fans back out to all six (see module docstring).
+    # Conditional edge (Ch.04/Ch.08/Ch.15): pass -> enqueue_render -> END,
+    # fail (cap exceeded) -> END directly, retry -> retry_dispatch, which
+    # fans back out to all six (see module docstring).
     graph.add_conditional_edges(
         "review",
         _route_after_review,
-        {"retry_dispatch": "retry_dispatch", END: END},
+        {"retry_dispatch": "retry_dispatch", "enqueue_render": "enqueue_render", END: END},
     )
     for name in PARALLEL_AGENT_NAMES:
         graph.add_edge("retry_dispatch", name)
+    graph.add_edge("enqueue_render", END)
 
     return graph.compile()
 

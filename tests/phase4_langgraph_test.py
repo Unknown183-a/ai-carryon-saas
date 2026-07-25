@@ -40,6 +40,41 @@ os.environ.setdefault("SERPER_API_KEY", "fake-serper-key")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
+# ── Updated in Phase 7 ───────────────────────────────────────────────────
+# A passing review now enqueues a real Celery chain (graph.py's new
+# `enqueue_render` terminal node) instead of the run just ending. This
+# file cares about the review/retry logic (Ch.04/Ch.08), not the render
+# pipeline itself — that's tests/phase7_async_workers_test.py's job — so
+# run Celery in eager mode with the four worker tasks' external calls
+# faked, the same doubles Phase 7's own test uses, rather than force
+# this file to need a live Redis broker just to reach its happy path.
+os.environ.setdefault("CELERY_BROKER_URL", "redis://localhost:6379/0")
+os.environ.setdefault("WORKER_OUTPUT_DIR", "/tmp/ai_carryon_phase4_test")
+from app.workers.celery_app import celery_app  # noqa: E402
+
+celery_app.conf.task_always_eager = True
+celery_app.conf.task_eager_propagates = True
+
+import app.workers.render_worker as _render_worker_module  # noqa: E402
+import app.workers.upload_worker as _upload_worker_module  # noqa: E402
+import app.workers.voice_worker as _voice_worker_module  # noqa: E402
+
+
+class _FakeCompletedProcess:
+    returncode = 0
+
+
+def _fake_ffmpeg_run(command, check=True, capture_output=True, timeout=None):
+    with open(command[-1], "wb") as f:
+        f.write(b"fake-mp4-for-phase4-test")
+    return _FakeCompletedProcess()
+
+
+_voice_worker_module.generate_speech = lambda *a, **k: b"fake-mp3-for-phase4-test"
+_render_worker_module.subprocess.run = _fake_ffmpeg_run
+_upload_worker_module.upload_video = lambda **k: "fake_video_id_phase4_test"
+_upload_worker_module._channel_youtube_token = lambda channel_id: None
+
 import httpx
 
 # ── Fake in-memory Upstash REST server (same as Phase 3's test) ────────────

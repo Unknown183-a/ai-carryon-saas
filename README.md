@@ -17,7 +17,7 @@ with zero setup.
 - [x] Phase 04 — LangGraph, single hardcoded channel
 - [x] Phase 05 — Qdrant + RAG
 - [x] Phase 06 — Multi-Tenancy
-- [ ] Phase 07 — Async Workers
+- [x] Phase 07 — Async Workers
 - [ ] Phase 08 — Scheduler
 - [ ] Phase 09 — Deployment
 - [ ] Phase 10 — Monitoring & Alerts
@@ -28,9 +28,9 @@ with zero setup.
 
 ```
 Architecture   ██████████ 100%
-Backend        ███████░░░  70%   (auth + gateway + rate limiting + core AI pipeline + RAG/memory + multi-tenancy; no async workers/upload yet)
+Backend        ████████░░  80%   (auth + gateway + rate limiting + core AI pipeline + RAG/memory + multi-tenancy + async render/upload chain)
 Frontend       ░░░░░░░░░░   0%
-Workers        ░░░░░░░░░░   0%
+Workers        ██████████ 100%   (voice → thumbnail → render → upload, Celery + Redis, broker-level + task-level retry)
 ```
 
 ## Where to look
