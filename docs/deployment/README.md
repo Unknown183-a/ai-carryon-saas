@@ -147,3 +147,27 @@ Railway was the short-term option while no GCP project existed yet. Now that
 GCP is set up (Firebase already lives there from Phase 1), Cloud Run keeps
 everything in one ecosystem and is what the architecture doc specifies. The
 Railway block stays in `deploy.yml`, commented, in case that ever changes.
+
+## Automating the two manual steps above
+
+`setup_secrets.sh` (this folder) automates the "Moving `.env` values into
+Secret Manager" for-loop above — same var list, but idempotent (creates on
+first run, adds a new version on any re-run, so it also covers "Rotating a
+key in production" step 1):
+
+```
+cd docs/deployment
+./setup_secrets.sh ../../.env $PROJECT_ID
+```
+
+`tests/phase9_deployed_reachability_test.py` (repo root) automates the
+"Confirming Redis/Qdrant reachability" section above, and also covers the
+worker-side gap this doc calls out ("no equivalent single endpoint to check
+business-logic health" for `ai-carryon-worker`) — since it checks Redis/Qdrant
+directly with real credentials rather than through any HTTP endpoint:
+
+```
+python tests/phase9_deployed_reachability_test.py
+# optionally also curl the gateway's /health in the same run:
+DEPLOYED_BASE_URL=https://<cloud-run-gateway-url> python tests/phase9_deployed_reachability_test.py
+```
