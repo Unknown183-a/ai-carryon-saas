@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-ink text-paper font-body antialiased;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-signal;
+  }
+  ::selection {
+    @apply bg-amberDim text-amber;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-panel border border-line rounded-lg;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-amber px-4 py-2
+      text-sm font-semibold text-ink transition hover:bg-amber/90
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-line
+      bg-panel2 px-4 py-2 text-sm font-medium text-paper transition hover:border-slate/60
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .field-label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate;
+  }
+  .field-input {
+    @apply w-full rounded-md border border-line bg-panel2 px-3 py-2 text-sm text-paper
+      placeholder:text-slate/60 focus:border-signal focus:outline-none;
+  }
+}

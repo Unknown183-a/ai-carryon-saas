@@ -1,0 +1,73 @@
+/**
+ * Mirrors backend/app/models/channel.py exactly — field-for-field, so the
+ * Create-Channel form and the JSON it sends never drift from what the
+ * Channel Factory (Ch.12d) actually accepts.
+ */
+
+export type ChannelBrand = {
+  tagline: string;
+  tone: string;
+  logo_position: "top_left" | "top_right" | "bottom_left" | "bottom_right";
+};
+
+export type ProviderKeys = {
+  youtube_oauth_token?: string;
+  gemini_api_key?: string;
+  groq_api_key?: string;
+  openai_api_key?: string;
+  elevenlabs_api_key?: string;
+  google_cloud_project?: string;
+  firebase_storage_bucket?: string;
+};
+
+export type ChannelCreateRequest = {
+  name: string;
+  youtube_handle?: string;
+  country: string;
+  language: string;
+  category: string;
+  brand: ChannelBrand;
+  format: "shorts" | "long_form";
+  target_audience?: string;
+  upload_schedule: string;
+  preferred_model?: string;
+  voice_profile?: string;
+  thumbnail_style?: string;
+  provider_keys: ProviderKeys;
+};
+
+export type Channel = {
+  channel_id: string;
+  workspace_id: string;
+  owner_uid: string;
+  status: "configuring" | "ready" | "paused" | "error" | string;
+  name: string;
+  youtube_handle?: string | null;
+  country: string;
+  language: string;
+  category: string;
+  brand: ChannelBrand;
+  format: string;
+  target_audience?: string | null;
+  upload_schedule: string;
+  preferred_model: string;
+  voice_profile?: string | null;
+  thumbnail_style?: string | null;
+};
+
+export type GenerateRunResult = {
+  run_id: string;
+  status?: string;
+  topic?: string;
+  script?: unknown;
+  seo?: unknown;
+  thumbnail_brief?: unknown;
+  hook?: unknown;
+  tags?: unknown;
+  description?: unknown;
+  review_verdict?: "pass" | "fail" | string;
+  review_findings?: unknown;
+  failure_reason?: string | null;
+  render_task_id?: string | null;
+  render_status?: string | null;
+};
