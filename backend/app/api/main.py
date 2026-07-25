@@ -10,6 +10,12 @@ app/api/middleware/rate_limit.py.
 Phase 6: /channels is now multi-tenant — POST /channels runs through the
 Channel Factory (Ch.12d), and channel-scoped routes are gated by the
 Ch.12e Permission Check. /workspaces is new (Ch.12c onboarding).
+
+Phase 8: /internal/scheduler is new — the route Cloud Scheduler (or a
+cron-triggered call, until Phase 9 picks a deploy target) hits to fire
+due channels' generate runs unattended (Ch.16). Gated by a system role
+token (`tenant_platform/security/permissions.py`'s
+`require_system_token`), not a Firebase user JWT.
 """
 
 import logging
@@ -18,7 +24,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware.rate_limit import RateLimitMiddleware
-from app.api.routers import channels, workspaces
+from app.api.routers import channels, internal_scheduler, workspaces
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +46,7 @@ app.add_middleware(RateLimitMiddleware)
 
 app.include_router(channels.router)
 app.include_router(workspaces.router)
+app.include_router(internal_scheduler.router)
 
 
 @app.on_event("startup")

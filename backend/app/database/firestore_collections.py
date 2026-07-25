@@ -23,6 +23,7 @@ from typing import Any, Optional
 WORKSPACES = "workspaces"
 CHANNELS = "channels"
 PROVIDER_KEYS = "channel_provider_keys"
+SCHEDULES = "schedules"  # Phase 8 (Ch.16) — one doc per channel, keyed by channel_id
 
 
 def _now_iso() -> str:
@@ -95,3 +96,34 @@ def get_provider_keys(db, channel_id: str) -> dict[str, str]:
     if not snapshot.exists:
         return {}
     return snapshot.to_dict()
+
+
+# ── Schedules (Ch.16) ────────────────────────────────────────────────────
+# One doc per channel, doc id == channel_id (same 1:1-by-id convention as
+# PROVIDER_KEYS above). `tenant_platform/scheduler/scheduler_service.py`
+# is the only caller that should ever touch these — this layer is just
+# storage, same rule as every other collection in this file.
+
+def upsert_schedule(db, channel_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    db.collection(SCHEDULES).document(channel_id).set(data, merge=True)
+    return {"channel_id": channel_id, **data}
+
+
+def get_schedule(db, channel_id: str) -> Optional[dict[str, Any]]:
+    snapshot = db.collection(SCHEDULES).document(channel_id).get()
+    if not snapshot.exists:
+        return None
+    return {"channel_id": snapshot.id, **snapshot.to_dict()}
+
+
+def list_enabled_schedules(db) -> list[dict[str, Any]]:
+    """Every schedule doc with `enabled == True`. Deliberately does NOT
+    filter by `next_run_at` in the Firestore query itself — this
+    project's Firestore access layer keeps every query to a single
+    equality/array-contains clause (see every other `.where()` call in
+    this file), so the "is it actually due right now" comparison is done
+    in Python by the caller (`scheduler_service.list_due_channel_ids`)
+    against each doc's `next_run_at`, not here.
+    """
+    docs = db.collection(SCHEDULES).where("enabled", "==", True).stream()
+    return [{"channel_id": doc.id, **doc.to_dict()} for doc in docs]

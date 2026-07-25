@@ -20,16 +20,13 @@ enqueued, per graph.py's own routing.
 
 from __future__ import annotations
 
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
 from app.api.dependencies import get_current_user, get_firestore
 from app.database.firestore_collections import find_workspace_for_uid, list_channels_for_workspace
 from app.models.channel import ChannelCreateRequest
-from ai.langgraph.graph import get_graph
-from tenant_platform.channels.brain import load_channel_brain
+from app.services.generation_service import run_generation
 from tenant_platform.factory.factory import ChannelValidationError
 from tenant_platform.factory.factory import create_channel as factory_create_channel
 from tenant_platform.security.permissions import require_channel_access
@@ -93,32 +90,11 @@ async def generate_video(
     `require_channel_access` has already run the full Ch.12e chain
     (resolved the channel, resolved its workspace, confirmed the caller's
     uid is a member) before this function body executes at all.
+
+    Phase 8: the actual LangGraph invocation now lives in
+    `app/services/generation_service.py`'s `run_generation`, shared with
+    `POST /internal/scheduler/run-due-channels` (Ch.16) so a
+    Scheduler-triggered run and a human-triggered run can never drift
+    into different behavior.
     """
-    brain = load_channel_brain(channel_doc)
-
-    initial_state = {
-        "channel_id": channel_id,
-        "parent_uid": user["uid"],
-        "run_id": str(uuid.uuid4()),
-        "channel_config": brain.to_pipeline_config(),
-    }
-
-    graph = get_graph()
-    final_state = await graph.ainvoke(initial_state)
-
-    return {
-        "run_id": final_state["run_id"],
-        "status": final_state.get("status"),
-        "topic": final_state.get("topic"),
-        "script": final_state.get("script"),
-        "seo": final_state.get("seo"),
-        "thumbnail_brief": final_state.get("thumbnail_brief"),
-        "hook": final_state.get("hook"),
-        "tags": final_state.get("tags"),
-        "description": final_state.get("description"),
-        "review_verdict": final_state.get("review_verdict"),
-        "review_findings": final_state.get("review_findings"),
-        "failure_reason": final_state.get("failure_reason"),
-        "render_task_id": final_state.get("render_task_id"),
-        "render_status": final_state.get("render_status"),
-    }
+    return await run_generation(channel_id, channel_doc, user["uid"])

@@ -1,0 +1,52 @@
+name: Scheduler — run due channels
+
+# Phase 8 (Ch.16): PHASE.md's task list explicitly allows deferring the
+# GCP piece — "Cloud Scheduler job (or cron-triggered endpoint if
+# deferring GCP)". Phase 9's deploy target (Cloud Run vs Railway) isn't
+# decided yet (see STATUS.md's Phase 9 side-track row and
+# docs/decisions/), so there's no live URL to cron-hit until that lands.
+# This workflow is the interim cron trigger — same "wired but a no-op
+# until secrets exist" shape deploy.yml's own deploy job already uses
+# for its undecided target, not a new pattern invented for this file.
+#
+# Once Phase 9 picks a deploy target and the app has a real URL:
+#   1. Add two repo secrets: SCHEDULER_URL (e.g. https://ai-carryon-gateway.example.com)
+#      and INTERNAL_SCHEDULER_TOKEN (same value as the deployed app's env var).
+#   2. That's it — the curl step below already reads both; nothing else
+#      in this file needs to change.
+#
+# 09:00 IST is 03:30 UTC — see tenant_platform/scheduler/schedule_rules.py's
+# DEFAULT_TIME_OF_DAY/DEFAULT_TIMEZONE for why that's the reference slot.
+# Runs a little more often than once a day so a channel scheduled a few
+# minutes either side of 09:00 IST (or on a different frequency, e.g.
+# 3_per_week) still gets picked up close to its actual due time, rather
+# than only being checked once every 24 hours.
+
+on:
+  schedule:
+    - cron: "0,30 * * * *"  # every 30 minutes; the endpoint itself decides who's actually due
+  workflow_dispatch: {}  # manual "run it now" button, useful for the Definition of Done's real-trigger check
+
+jobs:
+  run-due-channels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call POST /internal/scheduler/run-due-channels
+        run: |
+          if [ -z "${{ secrets.SCHEDULER_URL }}" ] || [ -z "${{ secrets.INTERNAL_SCHEDULER_TOKEN }}" ]; then
+            echo "SCHEDULER_URL / INTERNAL_SCHEDULER_TOKEN repo secrets not set yet — nothing to hit."
+            echo "This is expected until Phase 9 picks a deploy target and the app has a real URL."
+            exit 0
+          fi
+
+          response=$(curl -sS -o /tmp/response.json -w "%{http_code}" \
+            -X POST "${{ secrets.SCHEDULER_URL }}/internal/scheduler/run-due-channels" \
+            -H "X-Internal-Scheduler-Token: ${{ secrets.INTERNAL_SCHEDULER_TOKEN }}")
+
+          echo "HTTP $response"
+          cat /tmp/response.json
+
+          if [ "$response" -ge 300 ]; then
+            echo "run-due-channels returned a non-2xx status"
+            exit 1
+          fi

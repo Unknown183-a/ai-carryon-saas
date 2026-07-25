@@ -3,14 +3,22 @@ Channel Factory (Ch.12d, fig 12d.1): what "Save" actually does when a
 user submits the Create-Channel form.
 
 Validate Configuration -> Create Firestore Record -> Create Redis
-Namespace -> Create Qdrant Namespace -> Generate Channel DNA -> Channel
-Ready. Two more steps fig 12d.1 lists — Register Scheduler (Ch.16) and
-Register Monitoring (Ch.18) — aren't implemented here on purpose; those
-subsystems don't exist yet (Phases 8 and 10), so there's nothing to
-register with. `status` stays `"configuring"` rather than `"ready"`
-until every step in *this* chain succeeds; a future phase's Scheduler/
-Monitoring registration can flip it the rest of the way once those
-exist, without anything here needing to change.
+Namespace -> Create Qdrant Namespace -> Generate Channel DNA -> Register
+Scheduler -> Channel Ready. fig 12d.1 lists one more step, Register
+Monitoring (Ch.18), still deliberately unimplemented here — that
+subsystem doesn't exist yet (Phase 10), so there's nothing to register
+with. `status` stays `"configuring"` rather than `"ready"` until every
+step in *this* chain succeeds; a future phase's Monitoring registration
+can round the rest of the way out once it exists, without anything here
+needing to change.
+
+Phase 8 update: Register Scheduler is no longer a stub. Every channel
+this factory creates gets a `schedules` Firestore doc
+(`tenant_platform/scheduler/scheduler_service.register_schedule`) at
+creation time, computed from the channel's own `upload_schedule` field —
+a freshly created channel starts generating on its own schedule
+immediately, not only once someone separately visits a settings screen
+to "turn scheduling on."
 
 What "Create Redis Namespace" and "Create Qdrant Namespace" actually do:
 neither Redis nor Qdrant has a real "create a namespace" operation to
@@ -39,6 +47,7 @@ from app.database.firestore_collections import create_channel_record, update_cha
 from app.models.channel import ChannelCreateRequest
 from ai.rag.collections import ensure_collections
 from tenant_platform.channels.brain import ChannelBrain
+from tenant_platform.scheduler.scheduler_service import register_schedule
 from tenant_platform.security.provider_keys import encrypt_provider_keys
 
 
@@ -121,7 +130,13 @@ def create_channel(payload: ChannelCreateRequest, workspace_id: str, owner_uid: 
     # of surfacing later as a broken pipeline run.
     ChannelBrain(channel_id=channel_id, workspace_id=workspace_id, dna=dna).to_pipeline_config()
 
-    # Step 6: Channel Ready
+    # Step 6: Register Scheduler (Ch.16, Phase 8) — see module docstring.
+    # Runs before the status flip below so a channel is never reported
+    # "ready" while missing the schedule doc that lets it ever run
+    # unattended.
+    register_schedule(db, channel_id, payload.upload_schedule)
+
+    # Step 7: Channel Ready
     update_channel_status(db, channel_id, "ready")
     dna["status"] = "ready"
 

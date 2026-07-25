@@ -559,10 +559,17 @@ check("User B's channel list never includes User A's channel", channel_a_id not 
 
 # The critical negative test: patch get_graph so we can PROVE it's never
 # invoked for a rejected cross-tenant request, not just check the status code.
-import app.api.routers.channels as channels_module  # noqa: E402
+#
+# Updated in Phase 8: the actual `get_graph()` call moved out of
+# app.api.routers.channels and into app.services.generation_service's
+# `run_generation` (shared, as of Phase 8, with the new Scheduler-triggered
+# route) — same reason this file's Phase 7 update note gives for touching
+# other phases' tests: the code this test patches moved, the guarantee it
+# proves did not.
+import app.services.generation_service as generation_service_module  # noqa: E402
 
 graph_invocations = {"count": 0}
-real_get_graph = channels_module.get_graph
+real_get_graph = generation_service_module.get_graph
 
 
 class _TripwireGraph:
@@ -571,7 +578,7 @@ class _TripwireGraph:
         raise AssertionError("graph.ainvoke was called for a request that should have been rejected earlier")
 
 
-channels_module.get_graph = lambda: _TripwireGraph()
+generation_service_module.get_graph = lambda: _TripwireGraph()
 
 resp = client.post(f"/channels/{channel_a_id}/generate", headers=headers_for("user_b"))
 check("User B requesting User A's channel gets 403", resp.status_code == 403)
@@ -581,7 +588,7 @@ resp = client.post(f"/channels/{channel_b_id}/generate", headers=headers_for("us
 check("User A requesting User B's channel gets 403 (symmetric)", resp.status_code == 403)
 check("graph.ainvoke still never called", graph_invocations["count"] == 0)
 
-channels_module.get_graph = real_get_graph  # restore for any later use
+generation_service_module.get_graph = real_get_graph  # restore for any later use
 
 resp = client.post("/channels/does_not_exist/generate", headers=headers_for("user_a"))
 check("requesting a channel that doesn't exist at all gets 404, not 403", resp.status_code == 404)

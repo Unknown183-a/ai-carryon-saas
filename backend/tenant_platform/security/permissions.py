@@ -29,7 +29,10 @@ built in Phase 5) are the other two layers Ch.12e's table describes.
 
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException
+import hmac
+import os
+
+from fastapi import Depends, HTTPException, Request
 from google.cloud.firestore import Client
 
 from app.api.dependencies import get_current_user, get_firestore
@@ -61,3 +64,43 @@ async def require_channel_access(
         raise HTTPException(status_code=403, detail="You do not have access to this channel")
 
     return channel
+
+
+# ── System role token (Ch.16, Phase 8) ──────────────────────────────────
+# PHASE.md's task list: "Confirm Scheduler-triggered requests pass
+# through the Permission Check (Ch.12e) using a system role token, not a
+# user JWT." There is deliberately no Firebase user behind a scheduled
+# run — Cloud Scheduler (or, until Phase 9 picks a deploy target, a
+# cron-triggered HTTP call, per this phase's own PHASE.md) has no uid to
+# verify a JWT for, and shouldn't need one. What still has to hold: an
+# unauthenticated caller must not be able to trigger every channel's
+# pipeline on demand just by finding the route. `require_system_token`
+# is that check's Scheduler-side equivalent of `get_current_user` — a
+# FastAPI dependency, run at the same dependency-injection stage, just
+# checking a shared secret instead of a signed JWT.
+
+SYSTEM_TOKEN_HEADER = "X-Internal-Scheduler-Token"
+
+
+def require_system_token(request: Request) -> None:
+    """FastAPI dependency for `/internal/*` routes only (never for a
+    channel-scoped, user-facing route — those keep using
+    `require_channel_access` above). Raises 503 if the deployment never
+    configured `INTERNAL_SCHEDULER_TOKEN` at all (fails closed — an
+    unset secret must never be treated as "no token required"), 401 if
+    the header is missing, 403 if it's present but wrong.
+
+    `hmac.compare_digest` instead of `==` for the same reason
+    `tenant_platform/security/provider_keys.py`'s encryption exists at
+    all: a naive string comparison on a secret is a timing side-channel,
+    however small — worth avoiding for free.
+    """
+    expected = os.environ.get("INTERNAL_SCHEDULER_TOKEN")
+    if not expected:
+        raise HTTPException(status_code=503, detail="INTERNAL_SCHEDULER_TOKEN is not configured")
+
+    provided = request.headers.get(SYSTEM_TOKEN_HEADER)
+    if not provided:
+        raise HTTPException(status_code=401, detail=f"Missing {SYSTEM_TOKEN_HEADER} header")
+    if not hmac.compare_digest(provided, expected):
+        raise HTTPException(status_code=403, detail="Invalid system token")
