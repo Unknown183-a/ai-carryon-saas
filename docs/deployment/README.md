@@ -4,6 +4,23 @@ Deploy target: **Cloud Run** (per the SAD, Ch.17 — GitHub → Actions → Dock
 Cloud Run → load balancer → FastAPI). Railway is documented in `deploy.yml` as
 a fallback but is not the chosen path.
 
+Two Cloud Run services are deployed from the same image:
+- **`ai-carryon-gateway`** — the FastAPI API. Request-driven, scales to zero
+  when idle, same as any normal Cloud Run service.
+- **`ai-carryon-worker`** — the Celery worker. Cloud Run isn't built for a
+  continuously-running consumer by default, so this service is pinned with
+  `--min-instances=1 --max-instances=1 --no-cpu-throttling` (always one
+  instance running, billed continuously) and its container entrypoint is
+  overridden to `python -m app.workers.worker_entrypoint` instead of the
+  plain `celery` command. That wrapper starts the real Celery worker as a
+  child process and also runs a minimal HTTP server on `$PORT` that always
+  replies 200 — purely so Cloud Run's health polling considers the instance
+  up, since a bare Celery process never listens on any port. See that file's
+  docstring (`backend/app/workers/worker_entrypoint.py`) for the full reasoning.
+  It is NOT used for local dev — `docker-compose.yml` runs the plain `celery`
+  command there, since Cloud Run's health-polling requirement doesn't apply
+  locally.
+
 ## One-time GCP setup
 
 1. Create (or reuse) a GCP project. Note the project ID — it's `GCP_PROJECT_ID`.
@@ -14,7 +31,7 @@ a fallback but is not the chosen path.
    gcloud iam service-accounts create ai-carryon-deployer \
      --display-name="AI CarryON CI deployer"
    ```
-4. Grant it the two roles it needs:
+4. Grant it the roles it needs:
    ```
    gcloud projects add-iam-policy-binding $PROJECT_ID \
      --member="serviceAccount:ai-carryon-deployer@$PROJECT_ID.iam.gserviceaccount.com" \
@@ -41,8 +58,10 @@ a fallback but is not the chosen path.
 ## Moving `.env` values into Secret Manager
 
 Every variable in `.env.example` that isn't build-time config becomes a
-Secret Manager secret, then gets wired into the Cloud Run revision via
-`--set-secrets` (already in `deploy.yml`'s `secrets:` block). To create them:
+Secret Manager secret, then gets wired into both Cloud Run services via
+`--set-secrets` (already in `deploy.yml`'s `secrets:` blocks — the API and
+the worker get the same set, since the worker needs LLM/voice/YouTube keys
+just as much as the API needs Firebase/Redis/Qdrant). To create them:
 
 ```
 for VAR in FIREBASE_SERVICE_ACCOUNT_JSON UPSTASH_REDIS_REST_URL \
@@ -59,8 +78,8 @@ paste real secret values into a commit, an issue, or this file.)
 
 `FIREBASE_PROJECT_ID` and `RATE_LIMIT_REQUESTS_PER_MINUTE` are non-secret
 config and can stay as plain `--set-env-vars` if the app needs them at
-runtime — add them to the `deploy.yml` flags line if so, rather than
-Secret Manager.
+runtime — add them to the relevant `deploy.yml` flags line if so, rather
+than Secret Manager.
 
 ### Rotating a key in production
 
@@ -68,7 +87,10 @@ Secret Manager.
 2. Redeploy (push to `main`, or `gcloud run services update <service> --region <region>`
    with no image change — Cloud Run picks up `:latest` secret versions on
    new revisions only, so a redeploy is required, not just the secret update).
-3. Confirm `/health` still returns 200 before considering the rotation done.
+   Do this for BOTH `ai-carryon-gateway` and `ai-carryon-worker` if the
+   rotated key is one the worker also uses (most of them are).
+3. Confirm API `/health` still returns 200, and check the worker service's
+   logs show it reconnected cleanly, before considering the rotation done.
 4. Disable (don't delete) the old secret version once you've confirmed the
    new one works, in case of rollback.
 
@@ -76,20 +98,26 @@ Secret Manager.
 
 Both Upstash Redis and Qdrant Cloud are public REST/TLS endpoints reachable
 over the internet — Cloud Run's default egress (no VPC connector) can reach
-them with no extra networking config. After the first deploy, confirm with:
+them with no extra networking config, for both the API and worker services.
+After the first deploy, confirm the API side with:
 
 ```
 curl https://<cloud-run-url>/health
 ```
 
 and check the health response includes passing Redis and Qdrant checks (the
-Health Agent from Ch.18 covers this ongoing, once Phase 10 is built — for now,
-`/health` returning 200 is the Phase 9 bar).
+Health Agent from Ch.18 covers this ongoing, once Phase 10 is built — for
+now, `/health` returning 200 is the Phase 9 bar). For the worker, there's no
+equivalent single endpoint to check business-logic health (the `/health`-like
+port on `ai-carryon-worker` only proves the container is alive, per the
+`worker_entrypoint.py` docstring) — confirm it's actually consuming tasks by
+checking Cloud Run's logs for the service, or by queuing a real task and
+watching it get picked up.
 
 ## Rollback
 
-Cloud Run keeps prior revisions automatically. To roll back without a new
-deploy:
+Cloud Run keeps prior revisions automatically for both services. To roll
+back the API without a new deploy:
 
 ```
 gcloud run services update-traffic ai-carryon-gateway \
@@ -97,12 +125,25 @@ gcloud run services update-traffic ai-carryon-gateway \
   --to-revisions=<previous-revision-name>=100
 ```
 
-List revisions with `gcloud run revisions list --service ai-carryon-gateway --region asia-south1`.
+Same command with `ai-carryon-worker` in place of `ai-carryon-gateway` rolls
+back the worker. List revisions with
+`gcloud run revisions list --service <service-name> --region asia-south1`.
+
+## Cost note: two always-considered services
+
+`ai-carryon-gateway` scales to zero when idle, like any normal Cloud Run
+service — you only pay for actual requests. `ai-carryon-worker` is pinned at
+`--min-instances=1`, so it's billed continuously, 24/7, regardless of task
+volume. This is the trade-off that came with choosing "Cloud Run for the
+worker, made always-on" over a separate small always-on VM — worth
+revisiting if the always-on Cloud Run instance's cost turns out to be worse
+than just running a cheap VM (e.g. Compute Engine e2-micro) for the worker
+instead. Not switched to that here since the decision was made to stay on
+Cloud Run for both pieces.
 
 ## Cloud Run vs Railway — why Cloud Run
 
 Railway was the short-term option while no GCP project existed yet. Now that
 GCP is set up (Firebase already lives there from Phase 1), Cloud Run keeps
-everything in one ecosystem, scales to zero for this system's bursty/
-scheduled workload (per Ch.17), and is what the architecture doc specifies.
-The Railway block stays in `deploy.yml`, commented, in case that ever changes.
+everything in one ecosystem and is what the architecture doc specifies. The
+Railway block stays in `deploy.yml`, commented, in case that ever changes.
