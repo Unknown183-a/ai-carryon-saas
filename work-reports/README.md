@@ -46,6 +46,7 @@ Then, in the same commit, also update `STATUS.md` and the relevant phase's `PHAS
 
 | Date | Tier | Phase | Summary | File |
 |---|---|---|---|---|
+| 2026-07-25 | daily | Phase 5 | Real-keys verification: caught + fixed retired embedding model + real Qdrant payload-index bug (3 attempts) | `daily/2026-07-25-phase5-real-keys-verified.md` |
 | 2026-07-24 | daily | Phase 4 | Real-keys verification: caught + fixed retired Gemini models, swallowed fallback errors | `daily/2026-07-24-phase4-real-keys-verified.md` |
 | 2026-07-24 | milestone | Phase 4 | Full LangGraph pipeline (9 agents) shipped, verified against faked externals | `milestones/2026-07-24-phase4-done.md` |
 | 2026-07-24 | daily | Phase 4 | LangGraph core agents built and tested; real API keys not yet exercised | `daily/2026-07-24-phase4-langgraph-core-agents-done.md` |
