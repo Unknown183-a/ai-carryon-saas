@@ -63,16 +63,29 @@ COLLECTIONS: dict[str, dict[str, str]] = {
 
 
 def ensure_collections(client: QdrantClient | None = None) -> list[str]:
-    """Creates every collection in COLLECTIONS that doesn't already
-    exist. Idempotent — safe to call on every process start (this is
-    wired into FastAPI's startup in app/api/main.py). Returns the list
-    of collection names actually created this call (empty on a
-    warm/already-provisioned Qdrant instance).
+    """Ensures every collection in COLLECTIONS exists AND has its
+    channel_id payload index — for every collection, every call, not
+    just newly-created ones. Idempotent — safe to call on every process
+    start (this is wired into FastAPI's startup in app/api/main.py).
+    Returns the list of collection names actually created this call
+    (empty on a warm/already-provisioned Qdrant instance).
+
+    Deliberately does NOT pre-check collection_exists() itself before
+    calling client.ensure_collection() — that was the original bug here.
+    ensure_collection() does its own existence check internally and
+    ALSO ensures the payload index every time regardless of whether the
+    collection was pre-existing; a pre-check in this loop meant
+    ensure_collection() (and therefore the payload index) never even ran
+    for any collection that already existed, which was every collection
+    on a real Qdrant Cloud cluster the second time this ran. Caught by a
+    real run, not the faked test — the fake didn't enforce the payload
+    index requirement in the first place, so this double-guard bug had
+    no way to surface there.
     """
     client = client or get_qdrant()
     created = []
     for name in COLLECTIONS:
-        if not client.collection_exists(name):
-            client.ensure_collection(name, vector_size=EMBEDDING_DIM, distance=DISTANCE_METRIC)
+        was_created = client.ensure_collection(name, vector_size=EMBEDDING_DIM, distance=DISTANCE_METRIC)
+        if was_created:
             created.append(name)
     return created

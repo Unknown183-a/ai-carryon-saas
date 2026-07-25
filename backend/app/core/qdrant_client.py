@@ -97,7 +97,7 @@ class QdrantClient:
         )
         response.raise_for_status()
 
-    def ensure_collection(self, name: str, vector_size: int, distance: str = "Cosine") -> None:
+    def ensure_collection(self, name: str, vector_size: int, distance: str = "Cosine") -> bool:
         """Creates `name` with the given vector size/distance if it
         doesn't already exist. Safe to call every process start — this is
         what backend/ai/rag/collections.py's `ensure_collections()` calls
@@ -107,9 +107,17 @@ class QdrantClient:
         `create_payload_index`), whether the collection is newly created
         or already existed — every collection this project creates is
         queried with a mandatory `channel_id` filter (Ch.12e isolation,
-        via `channel_filter()`), so the index isn't optional.
+        via `channel_filter()`), so the index isn't optional. This is
+        exactly the bug a real run caught: a caller that checks
+        `collection_exists()` itself before calling this method (as
+        `ensure_collections()` originally did) will skip this call
+        entirely for any already-existing collection — silently never
+        creating the index for collections created before this fix
+        shipped. Returns whether a new collection was created, so
+        callers can track that without needing their own pre-check.
         """
-        if not self.collection_exists(name):
+        already_existed = self.collection_exists(name)
+        if not already_existed:
             response = self._client.put(
                 f"/collections/{name}",
                 json={"vectors": {"size": vector_size, "distance": distance}},
@@ -117,6 +125,7 @@ class QdrantClient:
             response.raise_for_status()
 
         self.create_payload_index(name, "channel_id", field_schema="keyword")
+        return not already_existed
 
     def upsert(self, collection: str, points: list[dict[str, Any]]) -> None:
         """`points`: list of {"id": str|int, "vector": [float,...], "payload": {...}}."""
