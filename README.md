@@ -21,7 +21,7 @@ with zero setup.
 - [ ] Phase 08 — Scheduler
 - [ ] Phase 09 — Deployment
 - [ ] Phase 10 — Monitoring & Alerts
-- [ ] Phase 11 — Frontend Dashboard
+- [x] Phase 11 — Frontend Dashboard *(built out of order — see `STATUS.md`'s side-track note; `npm run build` still needs a real run)*
 - [ ] Phase 12 — Learning Agent
 
 **Progress**
@@ -29,7 +29,7 @@ with zero setup.
 ```
 Architecture   ██████████ 100%
 Backend        ████████░░  80%   (auth + gateway + rate limiting + core AI pipeline + RAG/memory + multi-tenancy + async render/upload chain)
-Frontend       ░░░░░░░░░░   0%
+Frontend       ████████░░  80%   (Phase 11 built; needs a real `npm run build` + backend provider-keys route)
 Workers        ██████████ 100%   (voice → thumbnail → render → upload, Celery + Redis, broker-level + task-level retry)
 ```
 
