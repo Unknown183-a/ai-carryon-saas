@@ -18,7 +18,7 @@ with zero setup.
 - [x] Phase 05 — Qdrant + RAG
 - [x] Phase 06 — Multi-Tenancy
 - [x] Phase 07 — Async Workers
-- [ ] Phase 08 — Scheduler
+- [x] Phase 08 — Scheduler
 - [ ] Phase 09 — Deployment
 - [ ] Phase 10 — Monitoring & Alerts
 - [x] Phase 11 — Frontend Dashboard *(built out of order — see `STATUS.md`'s side-track note; `npm run build` still needs a real run)*
@@ -28,7 +28,7 @@ with zero setup.
 
 ```
 Architecture   ██████████ 100%
-Backend        ████████░░  80%   (auth + gateway + rate limiting + core AI pipeline + RAG/memory + multi-tenancy + async render/upload chain)
+Backend        █████████░  90%   (auth + gateway + rate limiting + core AI pipeline + RAG/memory + multi-tenancy + async render/upload chain + scheduler)
 Frontend       ████████░░  80%   (Phase 11 built; needs a real `npm run build` + backend provider-keys route)
 Workers        ██████████ 100%   (voice → thumbnail → render → upload, Celery + Redis, broker-level + task-level retry)
 ```

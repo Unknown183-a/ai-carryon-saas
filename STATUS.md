@@ -4,12 +4,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 8 — Scheduler (mainline); Phase 11 — Frontend Dashboard also now built, out of order on purpose |
+| **Active phase** | Phase 9 — Deployment (mainline); Phase 11 — Frontend Dashboard also built, out of order on purpose |
 | **Last updated by** | Claude |
 | **Last updated on** | 2026-07-25 |
 | **Blocking issue, if any** | Phase 7 (this repo's newest mainline work) hasn't been exercised against real ElevenLabs/YouTube/ffmpeg — everything in `tests/phase7_async_workers_test.py` runs against faked TTS/upload calls and a faked `subprocess.run`, same convention as Phase 4/5's original fake-first test scripts before their real-keys smoke tests existed. `render_worker.py` does shell out to a REAL `ffmpeg` binary in production (not faked at the binary level, only in the test script) — a real local run needs `ffmpeg` installed (`brew install ffmpeg` on the Mac, already in `docker/Dockerfile` for the container). Phase 6's own blocking issue (real Firebase/Firestore end-to-end pass) is still open too — nothing in Phase 7 required it, but it's still worth doing before either phase is trusted beyond local dev. So: before trusting Phase 7 beyond local dev, run a real end-to-end pass with real `ELEVENLABS_API_KEY`, real `YOUTUBE_CLIENT_SECRETS_B64`/`YOUTUBE_TOKEN_B64`, real `CELERY_BROKER_URL` (Upstash's Redis-protocol connection string, not the REST one — see `app/workers/celery_app.py`'s module docstring), and a real `ffmpeg` binary — the same way Phases 3-5 already got theirs (a `phase7_real_keys_smoke_test.py`, not yet written, is the natural next step whenever real keys are available). Separately, **Phase 11's `npm run build` has not been run to completion anywhere yet** — only `npx tsc --noEmit` (clean, zero errors) was verified, in an environment that couldn't reach `fonts.googleapis.com` for `next/font/google`. Run a real `npm run build` before trusting it beyond local dev. |
 | **Next concrete action** | Mainline: begin Phase 8 — see `phases/phase-08-scheduler/PHASE.md`. Worth a real-keys smoke test of Phase 7 first (see row above). Frontend: run `npm install && npm run build` for real in `frontend/` to confirm the build that couldn't be verified in the authoring sandbox; also add the missing `GET/PATCH /channels/{id}/provider-keys` backend route the Providers screen is currently honest about not having. |
-| **Latest work report** | `work-reports/daily/2026-07-25-phase7-async-workers-done.md` (mainline); `work-reports/daily/2026-07-25-phase11-frontend-dashboard-done.md` (frontend, out of order) |
+| **Latest work report** | `work-reports/daily/2026-07-25-phase8-scheduler-done.md` (mainline); `work-reports/daily/2026-07-25-phase11-frontend-dashboard-done.md` (frontend, out of order) |
 
 ## Independent side-track: Phase 9 (CI/CD)
 
