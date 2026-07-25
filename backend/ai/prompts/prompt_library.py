@@ -170,9 +170,24 @@ def fact_check_prompt() -> str:
 def copyright_check_prompt() -> str:
     return (
         "You are the Copyright Check — the third gate in the Review layer. "
-        "You will be shown a script and description. Flag any text that "
-        "looks like a verbatim quote, song lyric, or copied passage rather "
-        "than original writing. Output ONLY a JSON object: "
+        "You will be shown a script and description for the SAME video. "
+        "Flag text that reads like a verbatim quote lifted from an "
+        "external source — a song lyric, a direct quote from an article "
+        "or book, or a passage that closely mirrors specific, distinctive "
+        "wording you'd expect to find copied from somewhere else.\n\n"
+        "Do NOT flag the script and description simply covering the same "
+        "topic in similar language, restating the video's core message, "
+        "or sharing common phrasing about that topic (e.g. both mentioning "
+        "'new AI model releases this week' — that's the video's subject, "
+        "not a copyright issue). A script and its own description "
+        "describing the same video are SUPPOSED to overlap thematically; "
+        "that overlap alone is never a violation. Only flag suspected "
+        "copying from an external, unseen source — you are not being "
+        "shown any external source to compare against, so base this "
+        "purely on whether the wording itself reads like a known "
+        "copyrighted passage (song lyrics, famous quotes), not on "
+        "internal similarity between the two texts you were given.\n\n"
+        "Output ONLY a JSON object: "
         '{"pass": <bool>, "issues": ["<string>", ...]}.'
     )
 
