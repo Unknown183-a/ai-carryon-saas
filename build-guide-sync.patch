@@ -1,0 +1,171 @@
+diff --git a/BUILD_GUIDE.md b/BUILD_GUIDE.md
+index b139cba..5bddcea 100644
+--- a/BUILD_GUIDE.md
++++ b/BUILD_GUIDE.md
+@@ -37,11 +37,11 @@ If everyone who touches this project follows that rule, no handoff call is ever
+ 
+ | Field | Value |
+ |---|---|
+-| **Active phase**           | Phase 2 — FastAPI Gateway (shell only) |
+-| **Last updated by**        | Amit                                  |
+-| **Last updated on**        | 2026-07-22                            |
+-| **Blocking issue, if any** | none                                  |
+-| **Next concrete action**   | Begin Phase 2 — FastAPI shell + Firebase JWT verification |
++| **Active phase**           | Phase 9 — Deployment (mainline); Phase 11 — Frontend Dashboard also built, out of order on purpose |
++| **Last updated by**        | Claude                                |
++| **Last updated on**        | 2026-07-25                            |
++| **Blocking issue, if any** | See `STATUS.md` — that file, not this table, has been the actually-maintained source of truth since around Phase 2; this table had drifted five phases behind it until now. Short version: Phase 7 (ElevenLabs/YouTube/ffmpeg) and Phase 11 (`npm run build`) both still need a real-keys/real-build pass; Phase 8's "real scheduled trigger" observation is blocked on Phase 9's deploy-target decision. |
++| **Next concrete action**   | Begin Phase 9 — see `phases/phase-09-deployment/PHASE.md`. |
+ 
+ ---
+ 
+@@ -49,19 +49,22 @@ If everyone who touches this project follows that rule, no handoff call is ever
+ 
+ Get all of these set up **before Phase 0**, even though most aren't used until later phases. Doing this up front means no developer is ever blocked mid-phase waiting on account approval.
+ 
+-- [ ] GitHub repo created (private is fine to start)
+-- [ ] Firebase project created — [console.firebase.google.com](https://console.firebase.google.com) (Spark/free plan)
+-- [ ] Upstash account for Redis — [upstash.com](https://upstash.com) (free tier, REST-based, no local process)
+-- [ ] Qdrant Cloud account — [cloud.qdrant.io](https://cloud.qdrant.io) (free 1GB cluster)
+-- [ ] Gemini API key — [aistudio.google.com](https://aistudio.google.com)
+-- [ ] (Optional, can defer) Google Cloud project for Cloud Run / Cloud Tasks / Cloud Scheduler
+-- [ ] (Optional, can defer) ElevenLabs API key for voice
+-- [ ] YouTube Data API OAuth credentials — [console.cloud.google.com](https://console.cloud.google.com) → APIs & Services
++- [x] GitHub repo created (private is fine to start)
++- [x] Firebase project created — [console.firebase.google.com](https://console.firebase.google.com) (Spark/free plan)
++- [x] Upstash account for Redis — [upstash.com](https://upstash.com) (free tier, REST-based, no local process) *(Phase 7: also its Redis-protocol `rediss://` connection string, same instance, used as Celery's broker/backend)*
++- [x] Qdrant Cloud account — [cloud.qdrant.io](https://cloud.qdrant.io) (free 1GB cluster) *(real cluster created and verified — see Phase 5's real-keys work report)*
++- [x] Gemini API key — [aistudio.google.com](https://aistudio.google.com)
++- [ ] (Optional, can defer) Google Cloud project for Cloud Run / Cloud Tasks / Cloud Scheduler — Phase 7 ended up NOT needing Cloud Tasks (see `docs/decisions/0001-task-queue-choice.md`); still open for Phase 9's deploy-target decision and Phase 8's cron trigger
++- [ ] ElevenLabs API key for voice — *(no longer optional as of Phase 7 — `voice_worker.py` needs `ELEVENLABS_API_KEY` for real runs; runs fine in tests via the fake)*
++- [ ] YouTube Data API OAuth credentials — [console.cloud.google.com](https://console.cloud.google.com) → APIs & Services *(needed for `upload_worker.py`'s real runs — `YOUTUBE_CLIENT_SECRETS_B64` / `YOUTUBE_TOKEN_B64`)*
++- [x] Groq API key — [console.groq.com](https://console.groq.com) *(this checklist predates Phase 4 — added now, per `STATUS.md`'s own note that it was missing)*
++- [x] Serper.dev API key — [serper.dev](https://serper.dev) *(Research Agent's web search; same note as Groq above)*
+ 
+ **Local dev environment:**
+-- [ ] Python 3.11+
++- [x] Python 3.11+
+ - [ ] Node 20+
+ - [ ] Docker Desktop (only needed from Phase 9 onward — don't install if RAM-constrained until then)
++- [ ] `ffmpeg` installed locally *(new as of Phase 7 — `render_worker.py` shells out to the real binary; `brew install ffmpeg` on Mac, already in `docker/Dockerfile` for the container)*
+ 
+ Create a `.env.example` in the repo root now, and every phase below appends to it instead of inventing new undocumented env vars:
+ 
+@@ -101,10 +104,10 @@ ELEVENLABS_API_KEY=
+ **Depends on:** nothing.
+ 
+ **Tasks:**
+-- [ ] Run the skeleton command below
+-- [ ] Commit with message `chore: initial folder skeleton`
+-- [ ] Add `.env` to `.gitignore`, commit `.env.example` instead
+-- [ ] Add a root `README.md` that just links to this file and the SAD
++- [x] Run the skeleton command below
++- [x] Commit with message `chore: initial folder skeleton`
++- [x] Add `.env` to `.gitignore`, commit `.env.example` instead
++- [x] Add a root `README.md` that just links to this file and the SAD
+ 
+ ```bash
+ mkdir -p ai-carryon/{frontend,backend/{app/{api/{routers,middleware},core,services,models,database,workers},ai/{agents,langgraph,memory,rag,prompts,models,tools},platform/{channels,factory,workspace,scheduler,monitoring,security},integrations/{firebase,youtube,gemini,openai,groq},configs},deployment,tests,docs/{architecture,api,decisions,deployment,diagrams},docker,.github/workflows}
+@@ -149,12 +152,12 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
+ **Depends on:** Phase 1.
+ 
+ **Tasks:**
+-- [ ] `backend/app/api/main.py` — app instance, CORS, middleware registration
+-- [ ] `backend/app/api/middleware/auth.py` — verifies `Authorization: Bearer <jwt>` against Firebase Admin SDK
+-- [ ] `backend/app/api/dependencies.py` — `Depends()` providers for current user + Firestore client
+-- [ ] `backend/app/api/routers/channels.py` — `GET /channels` (list), `POST /channels` (create, no factory logic yet — just a raw Firestore write)
+-- [ ] `GET /health` endpoint returning `{"status": "ok"}` — this is what the Health Agent (Phase 10) will poll later, build the shape now
+-- [ ] Rate limiter middleware is a stub for now (real logic in Phase 3)
++- [x] `backend/app/api/main.py` — app instance, CORS, middleware registration
++- [x] `backend/app/api/middleware/auth.py` — verifies `Authorization: Bearer <jwt>` against Firebase Admin SDK
++- [x] `backend/app/api/dependencies.py` — `Depends()` providers for current user + Firestore client
++- [x] `backend/app/api/routers/channels.py` — `GET /channels` (list), `POST /channels` (create, no factory logic yet — just a raw Firestore write)
++- [x] `GET /health` endpoint returning `{"status": "ok"}` — this is what the Health Agent (Phase 10) will poll later, build the shape now
++- [x] Rate limiter middleware is a stub for now (real logic in Phase 3)
+ 
+ **Definition of Done:** `curl` with a valid Firebase JWT successfully creates and lists a channel document; `curl` with no token or a bad token gets `401`.
+ 
+@@ -221,12 +224,12 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
+ **Depends on:** Phase 4.
+ 
+ **Tasks:**
+-- [ ] `backend/ai/rag/chunker.py` — 300–500 token chunks with overlap (Ch.09)
+-- [ ] `backend/ai/rag/embed.py` — embedding client
+-- [ ] `backend/ai/rag/retriever.py` — hybrid search (vector similarity + keyword overlap, Ch.09)
+-- [ ] Create the 9 Qdrant collections from Ch.10: `scripts`, `research`, `comments`, `viewer_feedback`, `competitors`, `analytics`, `knowledge`, `prompt_history`, `lessons_learned`
+-- [ ] Wire `backend/ai/agents/research_agent.py` to call the retriever before calling the LLM (fig 5.1's flow)
+-- [ ] Backfill: embed and load a handful of past scripts/research from the *old* pipeline into `scripts` and `research` collections, so retrieval has something to find on day one
++- [x] `backend/ai/rag/chunker.py` — 300–500 token chunks with overlap (Ch.09)
++- [x] `backend/ai/rag/embed.py` — embedding client
++- [x] `backend/ai/rag/retriever.py` — hybrid search (vector similarity + keyword overlap, Ch.09)
++- [x] Create the 9 Qdrant collections from Ch.10: `scripts`, `research`, `comments`, `viewer_feedback`, `competitors`, `analytics`, `knowledge`, `prompt_history`, `lessons_learned`
++- [x] Wire `backend/ai/agents/research_agent.py` to call the retriever before calling the LLM (fig 5.1's flow)
++- [x] Backfill: embed and load a handful of past scripts/research from the *old* pipeline into `scripts` and `research` collections, so retrieval has something to find on day one
+ 
+ **Definition of Done:** a research run returns a summary that visibly cites retrieved chunks, and querying Qdrant directly shows points landing in the correct collection with correct metadata.
+ 
+@@ -243,15 +246,15 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
+ **Depends on:** Phase 5 (needs Qdrant collections to namespace) and Phase 3 (needs Redis to namespace).
+ 
+ **Tasks:**
+-- [ ] Retrofit Redis keys everywhere to `ch:{channel_id}:*` prefix (Ch.12b) — grep the whole codebase for raw Redis calls, there should be none left unprefixed
+-- [ ] Retrofit every Qdrant write/query to carry mandatory `channel_id` metadata filter (Ch.12b)
+-- [ ] `backend/tenant_platform/channels/brain.py` — the Channel Brain model (DNA, prompt library overrides, per-channel settings)
+-- [ ] `backend/tenant_platform/factory/factory.py` — implements the exact sequence from fig 12d.1: Validate Configuration → Create Firestore Record → Create Redis Namespace → Create Qdrant Namespace → Generate Channel DNA → Channel Ready
+-- [ ] `POST /workspaces` — creates a Workspace document on first login (Ch.12c)
+-- [ ] `POST /channels` (replace the raw Phase 2 version) — now runs through the Channel Factory
+-- [ ] Provider-key storage: encrypt at rest, store per channel, scoped so one channel's agents never see another channel's keys (Ch.12d table)
+-- [ ] `backend/tenant_platform/security/permissions.py` — Permission Check middleware: Workspace ID → Channel ID → Authenticated User ID → Permission Check, in that order (Ch.12e) — wire into every router, not just channels
+-- [ ] Write a negative test: User A's token requesting User B's channel must be rejected at the middleware layer, before touching LangGraph
++- [x] Retrofit Redis keys everywhere to `ch:{channel_id}:*` prefix (Ch.12b) — grep the whole codebase for raw Redis calls, there should be none left unprefixed
++- [x] Retrofit every Qdrant write/query to carry mandatory `channel_id` metadata filter (Ch.12b)
++- [x] `backend/tenant_platform/channels/brain.py` — the Channel Brain model (DNA, prompt library overrides, per-channel settings)
++- [x] `backend/tenant_platform/factory/factory.py` — implements the exact sequence from fig 12d.1: Validate Configuration → Create Firestore Record → Create Redis Namespace → Create Qdrant Namespace → Generate Channel DNA → Channel Ready
++- [x] `POST /workspaces` — creates a Workspace document on first login (Ch.12c)
++- [x] `POST /channels` (replace the raw Phase 2 version) — now runs through the Channel Factory
++- [x] Provider-key storage: encrypt at rest, store per channel, scoped so one channel's agents never see another channel's keys (Ch.12d table)
++- [x] `backend/tenant_platform/security/permissions.py` — Permission Check middleware: Workspace ID → Channel ID → Authenticated User ID → Permission Check, in that order (Ch.12e) — wire into every router, not just channels
++- [x] Write a negative test: User A's token requesting User B's channel must be rejected at the middleware layer, before touching LangGraph
+ 
+ **Definition of Done:** two different Firebase users can each create a channel, run the Phase 4 pipeline against their own channel independently, and neither can read, list, or trigger the other's channel — verified by an automated test, not manual inspection.
+ 
+@@ -268,13 +271,13 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
+ **Depends on:** Phase 6.
+ 
+ **Tasks:**
+-- [ ] Choose a task queue: Cloud Tasks (if already on GCP) or Celery + Redis broker (faster to start with, since Redis already exists from Phase 3)
+-- [ ] `backend/app/workers/voice_worker.py` — port existing TTS logic
+-- [ ] `backend/app/workers/render_worker.py` — port existing FFmpeg/MoviePy logic; keep the existing `-crf 28 -threads 1` OOM fix from the old pipeline
+-- [ ] `backend/app/workers/upload_worker.py` — port existing YouTube upload logic, including the base64-encoded OAuth credential pattern already proven in the old Railway deployment
+-- [ ] `backend/app/workers/thumbnail_worker.py`
+-- [ ] Wire LangGraph's terminal node to enqueue a task instead of calling these directly (Ch.15)
+-- [ ] Confirm retry-on-5xx behavior actually retries (kill a worker mid-job, confirm the task re-delivers)
++- [x] Choose a task queue: Cloud Tasks (if already on GCP) or Celery + Redis broker (faster to start with, since Redis already exists from Phase 3)
++- [x] `backend/app/workers/voice_worker.py` — port existing TTS logic
++- [x] `backend/app/workers/render_worker.py` — port existing FFmpeg/MoviePy logic; keep the existing `-crf 28 -threads 1` OOM fix from the old pipeline
++- [x] `backend/app/workers/upload_worker.py` — port existing YouTube upload logic, including the base64-encoded OAuth credential pattern already proven in the old Railway deployment
++- [x] `backend/app/workers/thumbnail_worker.py`
++- [x] Wire LangGraph's terminal node to enqueue a task instead of calling these directly (Ch.15)
++- [x] Confirm retry-on-5xx behavior actually retries (kill a worker mid-job, confirm the task re-delivers)
+ 
+ **Definition of Done:** a full pipeline run from Phase 6 results in a rendered, uploaded video, and manually crashing the render worker mid-job results in an automatic retry, not a stuck job.
+ 
+@@ -356,12 +359,12 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
+ **Depends on:** Phase 6 at minimum (needs working multi-tenant backend); ideally Phase 10 too, so status shown is real.
+ 
+ **Tasks:**
+-- [ ] Next.js app in `frontend/`
+-- [ ] Login / Sign Up screens against Firebase Auth
+-- [ ] Workspace dashboard (Ch.12c's list: Dashboard, Channels, Analytics, Billing, API Providers, Team, Settings, Logs)
+-- [ ] Create-Channel form matching Ch.12d's fields exactly (name, country, language, category, brand, schedule, model, voice, thumbnail style, YouTube connect)
+-- [ ] Live status view — poll `/health`-style endpoints or wire a WebSocket (Ch.03's `WS /ws/pipeline/{run_id}`) for real-time pipeline progress
+-- [ ] Provider connection screens (Ch.12d table) with clear "these keys are encrypted and scoped to this channel only" messaging
++- [x] Next.js app in `frontend/`
++- [x] Login / Sign Up screens against Firebase Auth
++- [x] Workspace dashboard (Ch.12c's list: Dashboard, Channels, Analytics, Billing, API Providers, Team, Settings, Logs)
++- [x] Create-Channel form matching Ch.12d's fields exactly (name, country, language, category, brand, schedule, model, voice, thumbnail style, YouTube connect)
++- [x] Live status view — poll `/health`-style endpoints or wire a WebSocket (Ch.03's `WS /ws/pipeline/{run_id}`) for real-time pipeline progress
++- [x] Provider connection screens (Ch.12d table) with clear "these keys are encrypted and scoped to this channel only" messaging
+ 
+ **Definition of Done:** a brand-new user, using only the UI, can go from signup to a channel with `status: ready`, matching the fig 0.1 journey exactly.
+ 
