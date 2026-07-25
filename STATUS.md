@@ -28,7 +28,7 @@ Copied from `BUILD_GUIDE.md` §2 — do these once, up front, regardless of whic
 - [x] Upstash account for Redis — upstash.com (free tier, REST-based) *(Phase 7: also its Redis-protocol `rediss://` connection string, same instance, used as Celery's broker/backend)*
 - [x] Qdrant Cloud account — cloud.qdrant.io (free 1GB cluster) *(real cluster created and verified — see Phase 5's real-keys work report)*
 - [x] Gemini API key — aistudio.google.com
-- [ ] (Optional, can defer) Google Cloud project for Cloud Run / Cloud Tasks / Cloud Scheduler — Phase 7 ended up NOT needing Cloud Tasks (see `phases/phase-07-async-workers/PHASE.md`'s own handoff note on why Celery+Redis was chosen instead); still open for Phase 9's deploy-target decision and Phase 8's scheduler
+- [ ] (Optional, can defer) Google Cloud project for Cloud Run / Cloud Tasks / Cloud Scheduler — Phase 7 ended up NOT needing Cloud Tasks (see `docs/decisions/0001-task-queue-choice.md` for why Celery+Redis was chosen instead); still open for Phase 9's deploy-target decision and Phase 8's scheduler
 - [ ] ElevenLabs API key for voice — *(no longer optional as of Phase 7 — `voice_worker.py` needs `ELEVENLABS_API_KEY` for real runs; the code runs fine without it in tests via the fake, per the Blocking Issue row above)*
 - [ ] YouTube Data API OAuth credentials — console.cloud.google.com *(needed for `upload_worker.py`'s real runs — `YOUTUBE_CLIENT_SECRETS_B64` / `YOUTUBE_TOKEN_B64`, base64-encoded per the old pipeline's pattern, see `integrations/youtube/client.py`)*
 - [x] Python 3.11+

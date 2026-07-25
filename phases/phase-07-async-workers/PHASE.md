@@ -8,7 +8,7 @@
 **Depends on:** Phase 6.
 
 **Tasks:**
-- [x] Choose a task queue: Cloud Tasks (if already on GCP) or Celery + Redis broker (faster to start with, since Redis already exists from Phase 3) — **chose Celery + Redis**, reusing the exact same Upstash instance Phase 3 provisioned via its `rediss://` protocol instead of the REST one Phase 3's `redis_client.py` uses (see `app/workers/celery_app.py`'s module docstring for why these are the same database, two protocols — no second Redis instance, no second bill)
+- [x] Choose a task queue: Cloud Tasks (if already on GCP) or Celery + Redis broker (faster to start with, since Redis already exists from Phase 3) — **chose Celery + Redis**, reusing the exact same Upstash instance Phase 3 provisioned via its `rediss://` protocol instead of the REST one Phase 3's `redis_client.py` uses (see `app/workers/celery_app.py`'s module docstring for the mechanics, and `docs/decisions/0001-task-queue-choice.md` for the full reasoning and trade-off — no second Redis instance, no second bill)
 - [x] `backend/app/workers/voice_worker.py` — ElevenLabs TTS via a new thin httpx client (`integrations/elevenlabs/client.py`), same pattern as `integrations/gemini/`
 - [x] `backend/app/workers/render_worker.py` — FFmpeg (shells out to the real binary via `subprocess`, no wrapper library); kept the existing `-crf 28 -threads 1` OOM fix from the old pipeline, unchanged
 - [x] `backend/app/workers/upload_worker.py` — YouTube Data API v3 resumable upload (`integrations/youtube/client.py`), including the base64-encoded OAuth credential pattern (`YOUTUBE_CLIENT_SECRETS_B64`/`YOUTUBE_TOKEN_B64`) already proven in the old Railway deployment, plus a per-channel token override (Ch.12d) that falls back to the platform default
