@@ -46,6 +46,8 @@ Then, in the same commit, also update `STATUS.md` and the relevant phase's `PHAS
 
 | Date | Tier | Phase | Summary | File |
 |---|---|---|---|---|
+| 2026-07-25 | daily | Phase 6 | Real-keys verification: multi-tenancy isolation confirmed + 2 Review Agent prompt bugs fixed | `daily/2026-07-25-phase6-real-keys-verified.md` |
+| 2026-07-25 | daily | Phase 6 | Multi-Tenancy build: Channel Brain, Workspace, Channel Factory | `daily/2026-07-25-phase6-multi-tenancy-done.md` |
 | 2026-07-25 | daily | Phase 5 | Real-keys verification: caught + fixed retired embedding model + real Qdrant payload-index bug (3 attempts) | `daily/2026-07-25-phase5-real-keys-verified.md` |
 | 2026-07-24 | daily | Phase 4 | Real-keys verification: caught + fixed retired Gemini models, swallowed fallback errors | `daily/2026-07-24-phase4-real-keys-verified.md` |
 | 2026-07-24 | milestone | Phase 4 | Full LangGraph pipeline (9 agents) shipped, verified against faked externals | `milestones/2026-07-24-phase4-done.md` |
