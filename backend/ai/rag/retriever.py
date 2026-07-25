@@ -82,7 +82,7 @@ def hybrid_search(
     normal, expected state early in a channel's life, not a failure.
     """
     qdrant = get_qdrant()
-    query_vector = embed_text(query, task_type="RETRIEVAL_QUERY")
+    query_vector = embed_text(channel_id, query, task_type="RETRIEVAL_QUERY")
     query_tokens = _tokenize(query)
 
     raw_results = qdrant.search(
@@ -129,7 +129,7 @@ def store_chunks(collection: str, text: str, metadata: dict[str, Any]) -> int:
 
     points = []
     for chunk in chunks:
-        vector = embed_text(chunk.text, task_type="RETRIEVAL_DOCUMENT")
+        vector = embed_text(metadata["channel_id"], chunk.text, task_type="RETRIEVAL_DOCUMENT")
         payload = dict(chunk.metadata)
         payload["text"] = chunk.text
         payload["chunk_index"] = chunk.index

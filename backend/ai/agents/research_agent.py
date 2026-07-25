@@ -3,8 +3,8 @@ Research Agent (Ch.05, RAG wired in Phase 5 per Ch.09/fig 5.1): Topic ->
 Redis cache -> Web Search + Qdrant Retriever -> LLM Context Builder ->
 Research Summary -> write the new summary back into Qdrant.
 
-Cache-first per Ch.11: key `research:{channel_id}:{normalized_topic}`,
-TTL 24 hours. A cache hit skips web search, RAG retrieval, and the LLM
+Cache-first per Ch.11: key `ch:{channel_id}:research:{normalized_topic}`
+(Ch.12b's channel namespacing, retrofitted in Phase 6), TTL 24 hours. A cache hit skips web search, RAG retrieval, and the LLM
 call entirely — it's already a finished, previously-grounded summary.
 
 On a cache miss (fig 5.1's full path): web search runs alongside a
@@ -32,7 +32,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.core.redis_client import get_redis
+from app.core.redis_client import channel_key, get_redis
 from ai.agents._utils import retry_with_backoff
 from ai.models.llm_client import call_llm, DEFAULT_MODELS
 from ai.prompts.prompt_library import research_summarizer_prompt
@@ -98,7 +98,7 @@ async def get_research_summary(topic: str, channel_config: dict[str, Any]) -> tu
     """
     channel_id = channel_config["channel_id"]
     topic_slug = _normalize_topic(topic)
-    cache_key = f"research:{channel_id}:{topic_slug}"
+    cache_key = channel_key(channel_id, f"research:{topic_slug}")
     fallback_key = cache_key + STALE_FALLBACK_SUFFIX
 
     redis = get_redis()

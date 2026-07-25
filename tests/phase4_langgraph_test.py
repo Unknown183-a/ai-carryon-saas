@@ -14,6 +14,15 @@ access to run — useful for fast local iteration and for CI. It does NOT
 prove your real Gemini/Groq/Serper keys work end-to-end; see
 phase4_real_keys_smoke_test.py (or the handoff notes) for that.
 
+Updated in Phase 6: Test 1 originally drove this through
+POST /channels/ai_carryon/generate over HTTP. Phase 6 legitimately
+changed that route to multi-tenant routing (Ch.12b/12e) — there's no
+hardcoded single-channel HTTP shortcut anymore, by design — so Test 1
+now calls the LangGraph engine directly instead, the way Test 2 always
+has. tests/phase6_multi_tenancy_test.py re-proves this same happy path
+through the *current* HTTP endpoint, plus the isolation guarantees this
+file never had reason to check.
+
 Run with:
     python phase4_langgraph_test.py
 """
@@ -32,7 +41,6 @@ os.environ.setdefault("SERPER_API_KEY", "fake-serper-key")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
 import httpx
-from fastapi.testclient import TestClient
 
 # ── Fake in-memory Upstash REST server (same as Phase 3's test) ────────────
 class FakeUpstash:
@@ -175,52 +183,60 @@ def fake_web_search(query, num_results=5, timeout=10.0):
 research_agent_module.web_search = fake_web_search
 
 
-# ── App setup, with auth bypassed via dependency override ──────────────────
-from app.api.main import app  # noqa: E402
-from app.api.dependencies import get_current_user  # noqa: E402
+# ── Test 1: happy path — the LangGraph pipeline itself ─────────────────────
+# Originally this called POST /channels/ai_carryon/generate over HTTP.
+# Phase 6 legitimately changed that route's behavior (multi-tenant routing
+# through the Channel Factory/Permission Check, Ch.12b/12e) — a hardcoded
+# single-channel HTTP shortcut no longer exists, by design, and Phase 6's
+# own test (tests/phase6_multi_tenancy_test.py) re-proves this exact happy
+# path through the *current* HTTP endpoint, plus the isolation guarantees
+# Phase 4 never had to worry about. What THIS test still needs to prove —
+# and still can, unchanged — is that the LangGraph engine itself (the
+# actual Trend -> Research -> Planner -> Parallel(6) -> Review pipeline)
+# produces a correct result, so it now calls the graph directly, the same
+# way Test 2 below always has, instead of through HTTP.
+print("=== Test 1: full pipeline happy path via the LangGraph engine directly ===")
 
-app.dependency_overrides[get_current_user] = lambda: {"uid": "test_uid"}
-client = TestClient(app)
+from ai.langgraph.graph import get_graph  # noqa: E402
+from ai.langgraph.hardcoded_channel import HARDCODED_CHANNEL  # noqa: E402
+import uuid  # noqa: E402
 
 
-# ── Test 1: happy path via the real HTTP endpoint ───────────────────────────
-print("=== Test 1: full pipeline happy path via POST /channels/ai_carryon/generate ===")
-resp = client.post("/channels/ai_carryon/generate")
-if resp.status_code != 200:
-    print(f"❌ FAILED: expected 200, got {resp.status_code}: {resp.text}")
+async def run_happy_path():
+    graph = get_graph()
+    initial_state = {
+        "channel_id": HARDCODED_CHANNEL["channel_id"],
+        "parent_uid": "test_uid",
+        "run_id": str(uuid.uuid4()),
+        "channel_config": HARDCODED_CHANNEL,
+    }
+    return await graph.ainvoke(initial_state)
+
+
+body = asyncio.run(run_happy_path())
+checks = [
+    ("status == reviewed", body.get("status") == "reviewed"),
+    ("review_verdict == pass", body.get("review_verdict") == "pass"),
+    ("script present", bool(body.get("script"))),
+    ("seo present", bool(body.get("seo"))),
+    ("thumbnail_brief present", bool(body.get("thumbnail_brief"))),
+    ("hook present", bool(body.get("hook"))),
+    ("tags present", bool(body.get("tags"))),
+    ("description present", bool(body.get("description"))),
+]
+all_ok = True
+for label, ok in checks:
+    print(("✅" if ok else "❌"), label)
+    all_ok = all_ok and ok
+if all_ok:
+    print("✅ Test 1 PASSED — full run produced a reviewed script + SEO + thumbnail brief")
 else:
-    body = resp.json()
-    checks = [
-        ("status == reviewed", body.get("status") == "reviewed"),
-        ("review_verdict == pass", body.get("review_verdict") == "pass"),
-        ("script present", bool(body.get("script"))),
-        ("seo present", bool(body.get("seo"))),
-        ("thumbnail_brief present", bool(body.get("thumbnail_brief"))),
-        ("hook present", bool(body.get("hook"))),
-        ("tags present", bool(body.get("tags"))),
-        ("description present", bool(body.get("description"))),
-    ]
-    all_ok = True
-    for label, ok in checks:
-        print(("✅" if ok else "❌"), label)
-        all_ok = all_ok and ok
-    if all_ok:
-        print("✅ Test 1 PASSED — full run produced a reviewed script + SEO + thumbnail brief")
-    else:
-        print("❌ Test 1 FAILED")
-
-# 404 check for an unknown channel
-resp404 = client.post("/channels/some_other_channel/generate")
-print(f"{'✅' if resp404.status_code == 404 else '❌'} Unknown channel_id correctly returns 404 (got {resp404.status_code})")
+    print("❌ Test 1 FAILED")
 
 
 # ── Test 2: forced Review failure retries only the correct single agent ────
 print("\n=== Test 2: forced Review failure retries exactly one agent ===")
 real_call_counts.clear()
-
-from ai.langgraph.graph import get_graph  # noqa: E402
-from ai.langgraph.hardcoded_channel import HARDCODED_CHANNEL  # noqa: E402
-import uuid
 
 FORCE_FAIL_TARGET = "seo"
 

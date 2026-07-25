@@ -16,7 +16,7 @@ with zero setup.
 - [x] Phase 03 — Redis (Upstash)
 - [x] Phase 04 — LangGraph, single hardcoded channel
 - [x] Phase 05 — Qdrant + RAG
-- [ ] Phase 06 — Multi-Tenancy
+- [x] Phase 06 — Multi-Tenancy
 - [ ] Phase 07 — Async Workers
 - [ ] Phase 08 — Scheduler
 - [ ] Phase 09 — Deployment
@@ -28,7 +28,7 @@ with zero setup.
 
 ```
 Architecture   ██████████ 100%
-Backend        ██████░░░░  55%   (auth + gateway + rate limiting + core AI pipeline + RAG/memory; no multi-tenancy yet)
+Backend        ███████░░░  70%   (auth + gateway + rate limiting + core AI pipeline + RAG/memory + multi-tenancy; no async workers/upload yet)
 Frontend       ░░░░░░░░░░   0%
 Workers        ░░░░░░░░░░   0%
 ```
@@ -48,7 +48,7 @@ Workers        ░░░░░░░░░░   0%
 - `docs/architecture/` — the SAD (one copy, reference only — don't edit, it explains *why*). `docs/api/`, `docs/decisions/`, `docs/deployment/`, `docs/diagrams/` are optional, fill in as needed (see each folder's `README.md`).
 - `BUILD_GUIDE.md` (root) — the one living build-order document; edit this if scope/order changes, then re-derive `phases/*/PHASE.md` from it
 - `phases/phase-00-...` through `phases/phase-12-...` — one folder per build phase, each with a `PHASE.md` containing that phase's Goal, Depends On, Tasks, Definition of Done, and Handoff Notes
-- `backend/` — organized by **responsibility**, not technology: `app/`, `ai/`, `platform/`, `integrations/`, `configs/`. See `backend/README.md` for the full map, the two "which folder for what" clarifications, and the folder-count guardrail.
+- `backend/` — organized by **responsibility**, not technology: `app/`, `ai/`, `tenant_platform/`, `integrations/`, `configs/`. See `backend/README.md` for the full map, the two "which folder for what" clarifications, and the folder-count guardrail.
 - `frontend/`, `deployment/`, `tests/`, `docker/`, `.github/workflows/` — the rest of Phase 0's skeleton; code lands here as each phase is built
 - `.env.example` — every environment variable any phase needs; copy to `.env` and fill in as you go
 

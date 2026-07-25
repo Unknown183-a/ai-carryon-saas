@@ -245,12 +245,12 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 **Tasks:**
 - [ ] Retrofit Redis keys everywhere to `ch:{channel_id}:*` prefix (Ch.12b) — grep the whole codebase for raw Redis calls, there should be none left unprefixed
 - [ ] Retrofit every Qdrant write/query to carry mandatory `channel_id` metadata filter (Ch.12b)
-- [ ] `backend/platform/channels/brain.py` — the Channel Brain model (DNA, prompt library overrides, per-channel settings)
-- [ ] `backend/platform/factory/factory.py` — implements the exact sequence from fig 12d.1: Validate Configuration → Create Firestore Record → Create Redis Namespace → Create Qdrant Namespace → Generate Channel DNA → Channel Ready
+- [ ] `backend/tenant_platform/channels/brain.py` — the Channel Brain model (DNA, prompt library overrides, per-channel settings)
+- [ ] `backend/tenant_platform/factory/factory.py` — implements the exact sequence from fig 12d.1: Validate Configuration → Create Firestore Record → Create Redis Namespace → Create Qdrant Namespace → Generate Channel DNA → Channel Ready
 - [ ] `POST /workspaces` — creates a Workspace document on first login (Ch.12c)
 - [ ] `POST /channels` (replace the raw Phase 2 version) — now runs through the Channel Factory
 - [ ] Provider-key storage: encrypt at rest, store per channel, scoped so one channel's agents never see another channel's keys (Ch.12d table)
-- [ ] `backend/platform/security/permissions.py` — Permission Check middleware: Workspace ID → Channel ID → Authenticated User ID → Permission Check, in that order (Ch.12e) — wire into every router, not just channels
+- [ ] `backend/tenant_platform/security/permissions.py` — Permission Check middleware: Workspace ID → Channel ID → Authenticated User ID → Permission Check, in that order (Ch.12e) — wire into every router, not just channels
 - [ ] Write a negative test: User A's token requesting User B's channel must be rejected at the middleware layer, before touching LangGraph
 
 **Definition of Done:** two different Firebase users can each create a channel, run the Phase 4 pipeline against their own channel independently, and neither can read, list, or trigger the other's channel — verified by an automated test, not manual inspection.
@@ -332,9 +332,9 @@ cd ai-carryon && git init && git add . && git commit -m "chore: initial folder s
 **Depends on:** Phase 9.
 
 **Tasks:**
-- [ ] `backend/platform/monitoring/health_agent.py` — small LangGraph polling Redis, Firestore, Qdrant, Cloud Run, workers, Scheduler, YouTube API, LLM providers (fig 18.1)
+- [ ] `backend/tenant_platform/monitoring/health_agent.py` — small LangGraph polling Redis, Firestore, Qdrant, Cloud Run, workers, Scheduler, YouTube API, LLM providers (fig 18.1)
 - [ ] Trigger the Health Agent on a short interval via Scheduler (Ch.16 mechanism, reused)
-- [ ] `backend/platform/monitoring/alert_agent.py` — implements the retry-then-escalate table from Ch.19, starting with the failure modes you've already hit once in the old pipeline: render failure, upload failure, YouTube quota
+- [ ] `backend/tenant_platform/monitoring/alert_agent.py` — implements the retry-then-escalate table from Ch.19, starting with the failure modes you've already hit once in the old pipeline: render failure, upload failure, YouTube quota
 - [ ] Wire email + dashboard notification on escalation
 - [ ] Incident Report written to Firestore on escalation, with a "pause this channel's schedule" action for serious failures
 

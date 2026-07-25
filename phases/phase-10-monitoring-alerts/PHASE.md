@@ -8,9 +8,9 @@
 **Depends on:** Phase 9.
 
 **Tasks:**
-- [ ] `backend/platform/monitoring/health_agent.py` — small LangGraph polling Redis, Firestore, Qdrant, Cloud Run, workers, Scheduler, YouTube API, LLM providers (fig 18.1)
+- [ ] `backend/tenant_platform/monitoring/health_agent.py` — small LangGraph polling Redis, Firestore, Qdrant, Cloud Run, workers, Scheduler, YouTube API, LLM providers (fig 18.1)
 - [ ] Trigger the Health Agent on a short interval via Scheduler (Ch.16 mechanism, reused)
-- [ ] `backend/platform/monitoring/alert_agent.py` — implements the retry-then-escalate table from Ch.19, starting with the failure modes you've already hit once in the old pipeline: render failure, upload failure, YouTube quota
+- [ ] `backend/tenant_platform/monitoring/alert_agent.py` — implements the retry-then-escalate table from Ch.19, starting with the failure modes you've already hit once in the old pipeline: render failure, upload failure, YouTube quota
 - [ ] Wire email + dashboard notification on escalation
 - [ ] Incident Report written to Firestore on escalation, with a "pause this channel's schedule" action for serious failures
 

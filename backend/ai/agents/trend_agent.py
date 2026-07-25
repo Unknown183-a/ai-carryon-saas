@@ -2,8 +2,8 @@
 Trend Agent (Ch.04 node table: "Pulls topic candidates from Google
 Trends, cached in Redis").
 
-Cache-first per Ch.11: key `trend:{channel_id}`, TTL 6 hours. Ch.05's
-fig 5.2 cache pattern ("Cached? Yes -> return instantly / No -> call,
+Cache-first per Ch.11: key `ch:{channel_id}:trend` (Ch.12b's channel
+namespacing, retrofitted in Phase 6), TTL 6 hours. Ch.05's fig 5.2 cache pattern ("Cached? Yes -> return instantly / No -> call,
 then cache") applies here too even though that figure is drawn for the
 Research Agent — Ch.11's table lists the same pattern for Trend.
 
@@ -22,7 +22,7 @@ import asyncio
 import json
 from typing import Any
 
-from app.core.redis_client import get_redis
+from app.core.redis_client import channel_key, get_redis
 
 TREND_CACHE_TTL_SECONDS = 6 * 60 * 60  # Ch.11
 
@@ -67,7 +67,7 @@ def _fetch_trending_topics_sync(channel_config: dict[str, Any]) -> list[str]:
 
 async def get_trending_topics(channel_config: dict[str, Any]) -> list[str]:
     channel_id = channel_config["channel_id"]
-    cache_key = f"trend:{channel_id}"
+    cache_key = channel_key(channel_id, "trend")
 
     redis = get_redis()
     cached = redis.get(cache_key)

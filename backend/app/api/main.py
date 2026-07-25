@@ -6,6 +6,10 @@ Firestore document through a real endpoint. No LangGraph yet.
 
 Phase 3: rate limiting is now real, backed by Redis (Upstash) — see
 app/api/middleware/rate_limit.py.
+
+Phase 6: /channels is now multi-tenant — POST /channels runs through the
+Channel Factory (Ch.12d), and channel-scoped routes are gated by the
+Ch.12e Permission Check. /workspaces is new (Ch.12c onboarding).
 """
 
 import logging
@@ -14,7 +18,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware.rate_limit import RateLimitMiddleware
-from app.api.routers import channels
+from app.api.routers import channels, workspaces
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +39,7 @@ app.add_middleware(
 app.add_middleware(RateLimitMiddleware)
 
 app.include_router(channels.router)
+app.include_router(workspaces.router)
 
 
 @app.on_event("startup")

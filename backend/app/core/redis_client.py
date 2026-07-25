@@ -19,11 +19,17 @@ Usage:
     redis.incr("rl:user:abc123")
 
 Every key in this project is namespaced by prefix per Ch.11 of the SAD
-(trend:*, research:*, llm:*, prompt:*, embed:*, sess:*, rl:*, api:*).
-
-# TODO (Phase 6): once multi-tenancy lands, every key everywhere in the
-# codebase gets retrofitted to `ch:{channel_id}:*` — don't build that
-# namespacing early, it belongs to Phase 6 per BUILD_GUIDE.md.
+(trend:*, research:*, llm:*, prompt:*, embed:*, sess:*, rl:*, api:*), and
+— per Ch.12b, done in Phase 6 — every one of those that's actually
+scoped to one channel is further prefixed `ch:{channel_id}:` via the
+`channel_key()` helper below, so one Redis instance behaves like many
+logically-isolated caches. A lookup for the wrong channel simply misses;
+there is no cross-channel key collision to guard against separately.
+Not every key in this codebase is channel-scoped — the rate limiter's
+per-user budget (`rl:user:{uid}`) intentionally is not, since it exists
+to protect the whole API's capacity, not one channel's; see
+app/api/middleware/rate_limit.py's docstring for that decision and the
+narrower per-channel counter it adds alongside the per-user one.
 """
 
 from __future__ import annotations
@@ -32,6 +38,15 @@ import os
 from typing import Optional
 
 import httpx
+
+
+def channel_key(channel_id: str, suffix: str) -> str:
+    """Builds a channel-namespaced Redis key: `ch:{channel_id}:{suffix}`
+    (Ch.12b). Every cache key that's scoped to one channel's data should
+    be built through this, not by hand, so there's exactly one place
+    that defines the namespacing convention.
+    """
+    return f"ch:{channel_id}:{suffix}"
 
 
 class RedisClient:

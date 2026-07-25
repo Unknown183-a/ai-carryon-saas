@@ -6,7 +6,7 @@ Organized by **responsibility**, not by technology. Five top-level folders — k
 |---|---|
 | `app/` | The FastAPI app itself: routers, middleware, shared core infra clients, business services, data models (API/Firestore schemas), database access, background workers |
 | `ai/` | Everything LLM/agent-related: LangGraph graph + agents, tool definitions, model registry/routing, RAG/retrieval, memory, prompt library |
-| `platform/` | Multi-tenant SaaS plumbing: channel brain, channel factory, workspace onboarding, scheduler, monitoring, tenant isolation & permissions |
+| `tenant_platform/` | Multi-tenant SaaS plumbing: channel brain, channel factory, workspace onboarding, scheduler, monitoring, tenant isolation & permissions. (Named `tenant_platform/`, not `platform/` as the SAD's prose calls it — `platform` collides with the Python stdlib module of the same name; see `tenant_platform/README.md`.) |
 | `integrations/` | Thin clients for external services: Firebase, YouTube, Gemini, OpenAI, Groq |
 | `configs/` | Per-channel configuration and encrypted provider-key storage |
 

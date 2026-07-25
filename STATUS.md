@@ -4,12 +4,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 6 — Multi-Tenancy: Channel Brain / Factory |
+| **Active phase** | Phase 7 — Async Workers |
 | **Last updated by** | Claude |
-| **Last updated on** | 2026-07-24 |
-| **Blocking issue, if any** | None — Phase 5's RAG pipeline is now verified for real. The repo owner created a real Qdrant Cloud cluster and ran `tests/phase5_real_keys_smoke_test.py` on 2026-07-25: real Gemini embedding call (768-dim, `gemini-embedding-2`), real collection creation, a real pipeline run, and a real point landing in Qdrant's `research` collection with correct `channel_id`/`topic` metadata. This surfaced and fixed two real bugs along the way — a retired embedding model (`gemini-embedding-001`, same failure class as Phase 4's `gemini-1.5-flash`) and a payload-index requirement Qdrant Cloud enforces that took three attempts to actually fix (the real root cause was a redundant existence-check in `ensure_collections()` that was silently skipping the fix entirely). Full story in `phases/phase-05-qdrant-rag/PHASE.md`'s handoff notes. Only remaining open item from the original three: `backend/ai/rag/backfill.py` still hasn't been run against a real export from the old pipeline (the illustrative `sample_backfill.json` doesn't count) — low priority, no old-pipeline export exists to backfill from yet.
-| **Next concrete action** | Begin Phase 6 — see `phases/phase-06-multi-tenancy-channel-factory/PHASE.md`. (Side-track: Phase 9's CI/CD half is done independently — see below — pick up its remaining deploy-target task whenever.) |
-| **Latest work report** | `work-reports/daily/2026-07-24-phase5-qdrant-rag-done.md` (mainline) and `work-reports/daily/2026-07-24-phase9-ci-cd-live.md` (independent side-track) |
+| **Last updated on** | 2026-07-25 |
+| **Blocking issue, if any** | Phase 6 (this repo's newest work) hasn't been exercised against real Firebase/Firestore — everything in `tests/phase6_multi_tenancy_test.py` runs against a faked Firestore double. Phases 3, 4, and 5 are now closed out for real, though: the repo owner created real Upstash and Qdrant Cloud accounts and ran both `tests/phase4_real_keys_smoke_test.py` and `tests/phase5_real_keys_smoke_test.py` for real on 2026-07-24/25 — real Gemini/Groq/Serper calls, real Redis, real Qdrant Cloud (embedding, collection creation, a real pipeline run, a real point landing in Qdrant's `research` collection with correct metadata). That work surfaced and fixed three real bugs along the way: two retired model names (`gemini-1.5-flash`/`gemini-1.5-pro` → the `-latest` aliases; `gemini-embedding-001` → `gemini-embedding-2`) and a Qdrant Cloud payload-index requirement that took three attempts to actually fix (see `phases/phase-05-qdrant-rag/PHASE.md`'s handoff for the full debugging story). Only remaining open item from Phase 5's original three: `backend/ai/rag/backfill.py` still hasn't been run against a real export from the old pipeline (low priority, no such export exists yet). So: before trusting Phase 6 beyond local dev, run a real end-to-end pass — real `.env`, real Firebase project, `POST /workspaces` → `POST /channels` → `POST /channels/{id}/generate` — the same way Phases 3-5 already got theirs.
+| **Next concrete action** | Begin Phase 7 — see `phases/phase-07-async-workers/PHASE.md`. Worth the real Firebase/Firestore smoke test above first, given how much has landed since Phase 3's Firestore work was last touched for real. (Side-track: Phase 9's CI/CD half is done independently — see below — pick up its remaining deploy-target task whenever.) |
+| **Latest work report** | `work-reports/daily/2026-07-25-phase6-multi-tenancy-done.md` (mainline), `work-reports/daily/2026-07-25-phase5-real-keys-verified.md` and `work-reports/daily/2026-07-24-phase4-real-keys-verified.md` (real-keys verification), and `work-reports/daily/2026-07-24-phase9-ci-cd-live.md` (independent side-track) |
 
 ## Independent side-track: Phase 9 (CI/CD)
 
@@ -26,7 +26,7 @@ Copied from `BUILD_GUIDE.md` §2 — do these once, up front, regardless of whic
 - [x] GitHub repo created (private is fine to start)
 - [x] Firebase project created — console.firebase.google.com (Spark/free plan)
 - [x] Upstash account for Redis — upstash.com (free tier, REST-based)
-- [ ] Qdrant Cloud account — cloud.qdrant.io (free 1GB cluster) *(still no real cluster created/tested against — Phase 5 built and tested the whole RAG pipeline against a faked Qdrant; see this file's Blocking issue row)*
+- [x] Qdrant Cloud account — cloud.qdrant.io (free 1GB cluster) *(real cluster created and verified — see Phase 5's real-keys work report)*
 - [x] Gemini API key — aistudio.google.com
 - [ ] (Optional, can defer) Google Cloud project for Cloud Run / Cloud Tasks / Cloud Scheduler
 - [ ] (Optional, can defer) ElevenLabs API key for voice

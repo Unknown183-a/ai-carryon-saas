@@ -17,6 +17,9 @@ google-genai
 groq
 pytrends
 
+# Phase 6 — multi-tenancy: provider-key encryption at rest (Ch.12d)
+cryptography
+
 # Shared
 python-dotenv
 requests
