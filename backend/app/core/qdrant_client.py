@@ -81,9 +81,18 @@ class QdrantClient:
         test server, which didn't enforce this. Idempotent: calling this
         again on an already-indexed field is a harmless no-op per
         Qdrant's own API (it returns success either way).
+
+        `wait=true` matters here: Qdrant processes index creation
+        asynchronously by default, so a query immediately after an
+        unwaited call can still 400 with the same "index not found"
+        error even though this call itself returned 200 — a real run
+        hit exactly that race (this call succeeded, ensure_collections()
+        logged success, and the very next line still failed). `wait=true`
+        blocks until indexing is actually done before returning.
         """
         response = self._client.put(
             f"/collections/{collection}/index",
+            params={"wait": "true"},
             json={"field_name": field_name, "field_schema": field_schema},
         )
         response.raise_for_status()
