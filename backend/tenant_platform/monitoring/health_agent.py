@@ -134,24 +134,28 @@ def check_youtube(state: HealthCheckState) -> dict[str, Any]:
 
 def check_llm_providers(state: HealthCheckState) -> dict[str, Any]:
     """Deliberately checks env-var presence only, not a live generate()
-    call — a live call against Gemini/Groq/OpenAI every 5 minutes has a
-    real dollar cost for a check that mostly wants to catch "someone
+    call — a live call against Gemini/Groq every 5 minutes has a real
+    dollar cost for a check that mostly wants to catch "someone
     revoked/rotated a key and forgot to update Secret Manager", which a
     presence check already catches for the "forgot entirely" case. A key
     that's present but invalid/expired will surface the first time a
     real generation run tries to use it (and THAT failure has its own
     retry-then-escalate path through render/generation failures, not
     this one) — an acceptable gap given the cost trade-off.
+
+    Only GEMINI_API_KEY and GROQ_API_KEY — those are the two providers
+    the generation pipeline actually calls. OPENAI_API_KEY is
+    deliberately NOT checked here: it isn't read by any platform-level
+    generation code, only available as an optional per-channel provider
+    key (`app/models/channel.py`'s `openai_api_key` field) for a channel
+    that opts into it — requiring it platform-wide would have been
+    checking for a key nothing actually needs by default.
     """
     import os
 
-    missing = [
-        var
-        for var in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY")
-        if not os.environ.get(var)
-    ]
+    missing = [var for var in ("GEMINI_API_KEY", "GROQ_API_KEY") if not os.environ.get(var)]
     ok = not missing
-    detail = "all 3 provider keys present" if ok else f"missing: {missing}"
+    detail = "both provider keys present" if ok else f"missing: {missing}"
     return {"services": [_result("llm_providers", ok, detail)]}
 
 
