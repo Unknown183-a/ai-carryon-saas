@@ -47,6 +47,7 @@ itself failed and should be retried with backoff.
 from __future__ import annotations
 
 import os
+import ssl
 
 from celery import Celery
 
@@ -62,7 +63,15 @@ celery_app = Celery(
     ],
 )
 
+# Upstash's rediss:// endpoint needs an explicit ssl_cert_reqs setting --
+# Celery refuses to guess a default for a security-sensitive option like
+# this. CERT_NONE matches Upstash's managed cert setup (no custom CA to
+# pin here); revisit if Upstash ever documents a stricter recommendation.
+_redis_ssl_opts = {"ssl_cert_reqs": ssl.CERT_NONE}
+
 celery_app.conf.update(
+    broker_use_ssl=_redis_ssl_opts,
+    redis_backend_use_ssl=_redis_ssl_opts,
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1,  # pairs with acks_late: don't hoard extra jobs on a worker that might die
