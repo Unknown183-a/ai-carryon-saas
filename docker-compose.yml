@@ -1,0 +1,37 @@
+# Phase 9 — local dev/testing only. Not used in the Cloud Run deploy path
+# (that builds docker/Dockerfile directly in CI — see .github/workflows/deploy.yml).
+#
+# Redis (Upstash) and Qdrant (Qdrant Cloud) are NOT run as local containers
+# here on purpose: the whole point of Phase 3/5's choice of managed, REST-
+# reachable services was to have prod and local dev talk to the *same*
+# instances, so there's nothing to fake locally. Point your .env at your
+# real Upstash/Qdrant Cloud free-tier instances even for local runs.
+#
+# Usage:
+#   cp .env.example .env   # fill in real values
+#   docker compose up --build
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-carryon-backend:local
+    env_file:
+      - .env
+    environment:
+      - PORT=8080
+    ports:
+      - "8080:8080"
+    # Default Dockerfile CMD already runs uvicorn — no override needed here.
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-carryon-backend:local
+    env_file:
+      - .env
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info"]
+    depends_on:
+      - api

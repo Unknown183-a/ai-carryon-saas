@@ -21,3 +21,4 @@ build/
 # Docker
 *.log
 backend/configs/*.json
+backend/client_secret.json

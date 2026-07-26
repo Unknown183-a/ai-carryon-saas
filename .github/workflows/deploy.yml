@@ -1,13 +1,21 @@
 name: Build, Test, Deploy
 
 # Phase 9 — runs from every push, so CI protects Phase 4/5/6... work too.
-# The "deploy" job only fires on main, and only once DEPLOY_TARGET secrets exist.
+# The "deploy" job only fires on main, and only once GCP_SA_KEY / GCP_PROJECT_ID
+# repo secrets exist (see docs/deployment/README.md for how to create them).
 
 on:
   push:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+
+env:
+  # Change these if you rename either Cloud Run service — kept in one place
+  # so the deploy steps and health-check steps agree.
+  CLOUD_RUN_SERVICE: ai-carryon-gateway
+  CLOUD_RUN_WORKER_SERVICE: ai-carryon-worker
+  CLOUD_RUN_REGION: asia-south1
 
 jobs:
   test:
@@ -69,31 +77,101 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    # Deploy target not finalized yet (PHASE.md task: "document the choice
-    # here once made" — Cloud Run per the SAD, or Railway short-term).
-    # This job is a no-op stub until GCP_PROJECT_ID / GCP_SA_KEY (or a
-    # Railway token) are added as repo secrets — uncomment the matching
-    # block below once that decision is made.
     steps:
-      - name: Deploy target not configured yet
-        run: |
-          echo "Image pushed to ghcr.io/${{ github.repository }}:${{ github.sha }}"
-          echo "No deploy target configured — set repo secrets and uncomment"
-          echo "the Cloud Run (or Railway) step in this workflow to go live."
+      - name: Compute lowercase image name
+        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
-      # --- Cloud Run option (matches the SAD) ---
-      # - uses: google-github-actions/auth@v2
-      #   with:
-      #     credentials_json: ${{ secrets.GCP_SA_KEY }}
-      # - uses: google-github-actions/deploy-cloudrun@v2
-      #   with:
-      #     service: ai-carryon-gateway
-      #     project_id: ${{ secrets.GCP_PROJECT_ID }}
-      #     image: ghcr.io/${{ github.repository }}:${{ github.sha }}
-      #     region: asia-south1
+      # Requires two repo secrets, created once per docs/deployment/README.md:
+      #   GCP_SA_KEY       — JSON key for a service account with the
+      #                      Cloud Run Admin + Service Account User roles
+      #   GCP_PROJECT_ID   — the target GCP project
+      # All other runtime config (Firebase, Upstash, Qdrant, LLM keys, etc.)
+      # lives in Secret Manager and is wired in via --set-secrets below, NOT
+      # passed as plain --set-env-vars — see the runbook for the mapping.
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # --- Railway option (short-term, matches old pipeline deploys) ---
+      # --- API/gateway: request-driven, scales to zero when idle ---
+      - name: Deploy API to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.CLOUD_RUN_SERVICE }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          image: ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          region: ${{ env.CLOUD_RUN_REGION }}
+          flags: --allow-unauthenticated --port=8080
+          secrets: |
+            FIREBASE_SERVICE_ACCOUNT_JSON=FIREBASE_SERVICE_ACCOUNT_JSON:latest
+            UPSTASH_REDIS_REST_URL=UPSTASH_REDIS_REST_URL:latest
+            UPSTASH_REDIS_REST_TOKEN=UPSTASH_REDIS_REST_TOKEN:latest
+            QDRANT_URL=QDRANT_URL:latest
+            QDRANT_API_KEY=QDRANT_API_KEY:latest
+            CHANNEL_SECRETS_ENCRYPTION_KEY=CHANNEL_SECRETS_ENCRYPTION_KEY:latest
+            GEMINI_API_KEY=GEMINI_API_KEY:latest
+            GROQ_API_KEY=GROQ_API_KEY:latest
+            OPENAI_API_KEY=OPENAI_API_KEY:latest
+            YOUTUBE_CLIENT_SECRETS_B64=YOUTUBE_CLIENT_SECRETS_B64:latest
+            YOUTUBE_TOKEN_B64=YOUTUBE_TOKEN_B64:latest
+            ELEVENLABS_API_KEY=ELEVENLABS_API_KEY:latest
+            CELERY_BROKER_URL=CELERY_BROKER_URL:latest
+            INTERNAL_SCHEDULER_TOKEN=INTERNAL_SCHEDULER_TOKEN:latest
+
+      # --- Worker: Celery needs to run continuously, which Cloud Run isn't
+      # built for by default. --no-cpu-throttling + --min-instances=1 keeps
+      # exactly one instance always running (billed continuously — this is
+      # the trade-off vs. a small always-on VM). The container's actual
+      # entrypoint here is worker_entrypoint.py, NOT the plain celery
+      # command — see that file's docstring for why: Cloud Run needs
+      # something answering on $PORT to consider the instance healthy,
+      # which a bare Celery process never does on its own. ---
+      - name: Deploy worker to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.CLOUD_RUN_WORKER_SERVICE }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          image: ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          region: ${{ env.CLOUD_RUN_REGION }}
+          flags: >-
+            --no-allow-unauthenticated
+            --no-cpu-throttling
+            --min-instances=1
+            --max-instances=1
+            --port=8080
+            --command=python
+            --args=-m,app.workers.worker_entrypoint
+          secrets: |
+            FIREBASE_SERVICE_ACCOUNT_JSON=FIREBASE_SERVICE_ACCOUNT_JSON:latest
+            UPSTASH_REDIS_REST_URL=UPSTASH_REDIS_REST_URL:latest
+            UPSTASH_REDIS_REST_TOKEN=UPSTASH_REDIS_REST_TOKEN:latest
+            QDRANT_URL=QDRANT_URL:latest
+            QDRANT_API_KEY=QDRANT_API_KEY:latest
+            CHANNEL_SECRETS_ENCRYPTION_KEY=CHANNEL_SECRETS_ENCRYPTION_KEY:latest
+            GEMINI_API_KEY=GEMINI_API_KEY:latest
+            GROQ_API_KEY=GROQ_API_KEY:latest
+            OPENAI_API_KEY=OPENAI_API_KEY:latest
+            YOUTUBE_CLIENT_SECRETS_B64=YOUTUBE_CLIENT_SECRETS_B64:latest
+            YOUTUBE_TOKEN_B64=YOUTUBE_TOKEN_B64:latest
+            ELEVENLABS_API_KEY=ELEVENLABS_API_KEY:latest
+            CELERY_BROKER_URL=CELERY_BROKER_URL:latest
+            INTERNAL_SCHEDULER_TOKEN=INTERNAL_SCHEDULER_TOKEN:latest
+
+      # --- Railway option (kept for reference; not the chosen path) ---
       # - uses: bervProject/railway-deploy@main
       #   with:
       #     railway_token: ${{ secrets.RAILWAY_TOKEN }}
       #     service: ai-carryon-gateway
+
+      - name: Verify API /health
+        run: |
+          URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
+            --region ${{ env.CLOUD_RUN_REGION }} --format='value(status.url)')
+          echo "Checking $URL/health"
+          curl -sf "$URL/health" || (echo "API health check failed" && exit 1)
+
+      - name: Verify worker is running (Cloud Run revision status only)
+        run: |
+          gcloud run services describe ${{ env.CLOUD_RUN_WORKER_SERVICE }} \
+            --region ${{ env.CLOUD_RUN_REGION }} \
+            --format='value(status.conditions[0].status)' | grep -q True \
+            || (echo "Worker service not in a healthy state" && exit 1)
