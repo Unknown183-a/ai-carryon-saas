@@ -156,8 +156,8 @@ jobs:
             --min-instances=1
             --max-instances=1
             --port=8080
-            --command=python
-            --args=-m,app.workers.worker_entrypoint
+            --command=python,-m
+            --args=app.workers.worker_entrypoint
           env_vars: FIREBASE_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
           secrets: ${{ steps.compute_secrets.outputs.secrets_list }}
 
