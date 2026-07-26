@@ -61,7 +61,7 @@ updated=0
 skipped=0
 
 for VAR in "${SECRET_VARS[@]}"; do
-  value="$(grep -E "^${VAR}=" "$ENV_FILE" | head -1 | cut -d'=' -f2-)"
+  value="$(grep -E "^${VAR}=" "$ENV_FILE" | head -1 | cut -d'=' -f2- || true)"
 
   if [[ -z "$value" ]]; then
     echo "  skip     $VAR (empty or not set in $ENV_FILE)"
