@@ -48,13 +48,33 @@ from __future__ import annotations
 
 import os
 import ssl
+from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 from celery import Celery
 
+
+def _with_ssl_cert_reqs(url: str) -> str:
+    """Append ssl_cert_reqs=CERT_NONE to a rediss:// URL's query string.
+
+    Celery's Redis *result backend* class only reads ssl_cert_reqs from the
+    URL's own query string (unlike the broker connection, which does honor
+    the broker_use_ssl config dict) -- so setting broker_use_ssl /
+    redis_backend_use_ssl alone is not sufficient for rediss:// backends.
+    """
+    if not url.startswith("rediss://"):
+        return url
+    parsed = urlparse(url)
+    query = dict(parse_qsl(parsed.query))
+    query.setdefault("ssl_cert_reqs", "CERT_NONE")
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
+_broker_url = _with_ssl_cert_reqs(os.environ["CELERY_BROKER_URL"])
+
 celery_app = Celery(
     "ai_carryon_workers",
-    broker=os.environ["CELERY_BROKER_URL"],
-    backend=os.environ["CELERY_BROKER_URL"],
+    broker=_broker_url,
+    backend=_broker_url,
     include=[
         "app.workers.voice_worker",
         "app.workers.thumbnail_worker",
