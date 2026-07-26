@@ -31,7 +31,7 @@ Two Cloud Run services are deployed from the same image:
    gcloud iam service-accounts create ai-carryon-deployer \
      --display-name="AI CarryON CI deployer"
    ```
-4. Grant it the roles it needs:
+4. Grant the deployer account the roles it needs to run `gcloud run deploy`:
    ```
    gcloud projects add-iam-policy-binding $PROJECT_ID \
      --member="serviceAccount:ai-carryon-deployer@$PROJECT_ID.iam.gserviceaccount.com" \
@@ -45,6 +45,29 @@ Two Cloud Run services are deployed from the same image:
      --member="serviceAccount:ai-carryon-deployer@$PROJECT_ID.iam.gserviceaccount.com" \
      --role="roles/secretmanager.secretAccessor"
    ```
+4a. **Also grant secret access to the runtime service account** — a
+    separate, easy-to-miss step. `ai-carryon-deployer` above is the
+    identity GitHub Actions uses to *call* `gcloud run deploy`; it is
+    NOT the identity Cloud Run runs your container *as* once deployed.
+    Unless a runtime service account is explicitly set (this project
+    doesn't set one, to keep the runbook shorter), Cloud Run defaults to
+    the project's automatic "default compute service account"
+    (`PROJECT_NUMBER-compute@developer.gserviceaccount.com` — note
+    that's the project *number*, not the project ID; find it with
+    `gcloud projects describe $PROJECT_ID --format='value(projectNumber)'`).
+    THIS is the identity that actually fetches every `--set-secrets`
+    value at container startup, and it has no permissions by default.
+    Skipping this step produces a very specific, very clear error at
+    deploy time — `Permission denied on secret: ... The service account
+    used must be granted the 'Secret Manager Secret Accessor' role`,
+    once per secret — so if you see that, this is the fix:
+    ```
+    PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+
+    gcloud projects add-iam-policy-binding $PROJECT_ID \
+      --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+      --role="roles/secretmanager.secretAccessor"
+    ```
 5. Create and download its key:
    ```
    gcloud iam service-accounts keys create key.json \
