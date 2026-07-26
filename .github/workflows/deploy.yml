@@ -92,6 +92,37 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # Not every var in the "full" secret list necessarily has a real
+      # Secret Manager entry yet (e.g. ELEVENLABS_API_KEY before that
+      # integration has real credentials) — setup_secrets.sh intentionally
+      # skips creating a secret for anything empty in .env, per its own
+      # output ("skip VAR (empty or not set)"). Passing a --set-secrets
+      # entry that names a secret which doesn't exist fails the WHOLE
+      # deploy (gcloud.run.deploy: "Secret ... was not found"), even
+      # though most of the list is fine. So: build the secrets list here
+      # from what's ACTUALLY in Secret Manager right now, not from a
+      # static assumption that all 14 exist. A var missing from Secret
+      # Manager just means that env var won't be set in the container —
+      # exactly like today, nothing regresses, it just stops blocking the
+      # whole deploy over integrations that aren't wired up yet.
+      - name: Compute available secrets
+        id: compute_secrets
+        run: |
+          CANDIDATES="FIREBASE_SERVICE_ACCOUNT_JSON UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN QDRANT_URL QDRANT_API_KEY CHANNEL_SECRETS_ENCRYPTION_KEY GEMINI_API_KEY GROQ_API_KEY OPENAI_API_KEY YOUTUBE_CLIENT_SECRETS_B64 YOUTUBE_TOKEN_B64 ELEVENLABS_API_KEY CELERY_BROKER_URL INTERNAL_SCHEDULER_TOKEN"
+          {
+            echo "secrets_list<<SECRETS_EOF"
+            for VAR in $CANDIDATES; do
+              if gcloud secrets describe "$VAR" --project "${{ secrets.GCP_PROJECT_ID }}" >/dev/null 2>&1; then
+                echo "${VAR}=${VAR}:latest"
+              else
+                echo "  (skipping $VAR — no Secret Manager entry yet)" >&2
+              fi
+            done
+            echo "SECRETS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       # --- API/gateway: request-driven, scales to zero when idle ---
       - name: Deploy API to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
@@ -101,21 +132,7 @@ jobs:
           image: ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
           region: ${{ env.CLOUD_RUN_REGION }}
           flags: --allow-unauthenticated --port=8080
-          secrets: |
-            FIREBASE_SERVICE_ACCOUNT_JSON=FIREBASE_SERVICE_ACCOUNT_JSON:latest
-            UPSTASH_REDIS_REST_URL=UPSTASH_REDIS_REST_URL:latest
-            UPSTASH_REDIS_REST_TOKEN=UPSTASH_REDIS_REST_TOKEN:latest
-            QDRANT_URL=QDRANT_URL:latest
-            QDRANT_API_KEY=QDRANT_API_KEY:latest
-            CHANNEL_SECRETS_ENCRYPTION_KEY=CHANNEL_SECRETS_ENCRYPTION_KEY:latest
-            GEMINI_API_KEY=GEMINI_API_KEY:latest
-            GROQ_API_KEY=GROQ_API_KEY:latest
-            OPENAI_API_KEY=OPENAI_API_KEY:latest
-            YOUTUBE_CLIENT_SECRETS_B64=YOUTUBE_CLIENT_SECRETS_B64:latest
-            YOUTUBE_TOKEN_B64=YOUTUBE_TOKEN_B64:latest
-            ELEVENLABS_API_KEY=ELEVENLABS_API_KEY:latest
-            CELERY_BROKER_URL=CELERY_BROKER_URL:latest
-            INTERNAL_SCHEDULER_TOKEN=INTERNAL_SCHEDULER_TOKEN:latest
+          secrets: ${{ steps.compute_secrets.outputs.secrets_list }}
 
       # --- Worker: Celery needs to run continuously, which Cloud Run isn't
       # built for by default. --no-cpu-throttling + --min-instances=1 keeps
@@ -140,21 +157,7 @@ jobs:
             --port=8080
             --command=python
             --args=-m,app.workers.worker_entrypoint
-          secrets: |
-            FIREBASE_SERVICE_ACCOUNT_JSON=FIREBASE_SERVICE_ACCOUNT_JSON:latest
-            UPSTASH_REDIS_REST_URL=UPSTASH_REDIS_REST_URL:latest
-            UPSTASH_REDIS_REST_TOKEN=UPSTASH_REDIS_REST_TOKEN:latest
-            QDRANT_URL=QDRANT_URL:latest
-            QDRANT_API_KEY=QDRANT_API_KEY:latest
-            CHANNEL_SECRETS_ENCRYPTION_KEY=CHANNEL_SECRETS_ENCRYPTION_KEY:latest
-            GEMINI_API_KEY=GEMINI_API_KEY:latest
-            GROQ_API_KEY=GROQ_API_KEY:latest
-            OPENAI_API_KEY=OPENAI_API_KEY:latest
-            YOUTUBE_CLIENT_SECRETS_B64=YOUTUBE_CLIENT_SECRETS_B64:latest
-            YOUTUBE_TOKEN_B64=YOUTUBE_TOKEN_B64:latest
-            ELEVENLABS_API_KEY=ELEVENLABS_API_KEY:latest
-            CELERY_BROKER_URL=CELERY_BROKER_URL:latest
-            INTERNAL_SCHEDULER_TOKEN=INTERNAL_SCHEDULER_TOKEN:latest
+          secrets: ${{ steps.compute_secrets.outputs.secrets_list }}
 
       # --- Railway option (kept for reference; not the chosen path) ---
       # - uses: bervProject/railway-deploy@main
