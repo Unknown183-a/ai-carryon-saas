@@ -42,6 +42,7 @@ from typing import Any
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
 
@@ -70,6 +71,37 @@ def _load_credentials(token_json: str | None = None) -> Credentials:
     if credentials.expired and credentials.refresh_token:
         credentials.refresh(GoogleAuthRequest())
     return credentials
+
+
+def check_connection(token_json: str | None = None) -> dict[str, Any]:
+    """Phase 10 (Ch.18) — Health Agent's YouTube check. Deliberately the
+    cheapest real call the Data API offers: `channels.list(mine=True)`
+    costs 1 quota unit (YouTube's daily quota is normally 10,000 units,
+    so a poll every 5 minutes — 288/day — is negligible), and it proves
+    three things `_load_credentials` alone can't: the token actually
+    authenticates, the API is reachable, and quota hasn't already been
+    exhausted by the upload pipeline.
+
+    Returns a structured result instead of raising — this is a health
+    check, not an upload; a quota error here should be reported to the
+    Health Agent as one failing service among several, not crash the
+    whole poll the way `upload_video`'s "raise on failure" convention
+    would.
+    """
+    try:
+        credentials = _load_credentials(token_json)
+        youtube = build("youtube", "v3", credentials=credentials)
+        youtube.channels().list(part="snippet", mine=True, maxResults=1).execute()
+        return {"ok": True, "detail": "channels.list succeeded", "quota_exceeded": False}
+    except HttpError as exc:
+        quota_exceeded = exc.resp.status == 403 and b"quotaExceeded" in (exc.content or b"")
+        return {
+            "ok": False,
+            "detail": f"YouTube API error: {exc}",
+            "quota_exceeded": quota_exceeded,
+        }
+    except Exception as exc:  # noqa: BLE001 — health check must never raise into the caller
+        return {"ok": False, "detail": f"{type(exc).__name__}: {exc}", "quota_exceeded": False}
 
 
 def upload_video(

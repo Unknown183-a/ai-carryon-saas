@@ -19,8 +19,8 @@ with zero setup.
 - [x] Phase 06 — Multi-Tenancy
 - [x] Phase 07 — Async Workers
 - [x] Phase 08 — Scheduler
-- [ ] Phase 09 — Deployment
-- [ ] Phase 10 — Monitoring & Alerts
+- [x] Phase 09 — Deployment *(code-complete: Cloud Run for both API + worker services — see `STATUS.md`; GCP service account/repo secrets not created yet, one manual step left)*
+- [x] Phase 10 — Monitoring & Alerts *(code-complete: Health Agent + Alert Agent verified against real code paths — see `STATUS.md`; not yet run against real credentials or a real Cloud Scheduler job)*
 - [x] Phase 11 — Frontend Dashboard *(built out of order — see `STATUS.md`'s side-track note; `npm run build` still needs a real run)*
 - [ ] Phase 12 — Learning Agent
 
@@ -28,7 +28,7 @@ with zero setup.
 
 ```
 Architecture   ██████████ 100%
-Backend        █████████░  90%   (auth + gateway + rate limiting + core AI pipeline + RAG/memory + multi-tenancy + async render/upload chain + scheduler)
+Backend        █████████░  95%   (auth + gateway + rate limiting + core AI pipeline + RAG/memory + multi-tenancy + async render/upload chain + scheduler + deployment + monitoring/alerting)
 Frontend       ████████░░  80%   (Phase 11 built; needs a real `npm run build` + backend provider-keys route)
 Workers        ██████████ 100%   (voice → thumbnail → render → upload, Celery + Redis, broker-level + task-level retry)
 ```

@@ -24,6 +24,8 @@ WORKSPACES = "workspaces"
 CHANNELS = "channels"
 PROVIDER_KEYS = "channel_provider_keys"
 SCHEDULES = "schedules"  # Phase 8 (Ch.16) — one doc per channel, keyed by channel_id
+INCIDENTS = "incidents"  # Phase 10 (Ch.19) — one doc per escalation
+NOTIFICATIONS = "notifications"  # Phase 10 (Ch.19) — dashboard-facing half of an escalation
 
 
 def _now_iso() -> str:
@@ -127,3 +129,71 @@ def list_enabled_schedules(db) -> list[dict[str, Any]]:
     """
     docs = db.collection(SCHEDULES).where("enabled", "==", True).stream()
     return [{"channel_id": doc.id, **doc.to_dict()} for doc in docs]
+
+
+def set_schedule_enabled(db, channel_id: str, enabled: bool) -> None:
+    """Phase 10 (Ch.19)'s "pause this channel's schedule" escalation
+    action — reuses the exact same `enabled` flag
+    `list_enabled_schedules` already filters on above, so pausing a
+    channel here is immediately effective on the very next Scheduler
+    poll, no separate "is this channel paused" check needed anywhere
+    else. A no-op (not an error) if the channel has no schedule doc yet
+    — nothing to pause.
+    """
+    if get_schedule(db, channel_id) is None:
+        return
+    db.collection(SCHEDULES).document(channel_id).set({"enabled": enabled}, merge=True)
+
+
+# ── Incidents (Ch.19, Phase 10) ──────────────────────────────────────────
+# One doc per escalation. `channel_id` is `"platform"` for infra-level
+# incidents that aren't about any one channel (Redis down, Qdrant
+# unreachable, etc. — see monitoring/health_agent.py) rather than a real
+# channel id, since every other query pattern in this file assumes
+# `channel_id` is always a meaningful filter value and Firestore has no
+# natural "N/A" — an explicit sentinel string is clearer than `None` here
+# for something that gets displayed on a dashboard.
+
+def create_incident_report(db, data: dict[str, Any]) -> dict[str, Any]:
+    doc_ref = db.collection(INCIDENTS).document()
+    payload = {**data, "created_at": _now_iso()}
+    doc_ref.set(payload)
+    return {"incident_id": doc_ref.id, **payload}
+
+
+def list_incidents(db, workspace_id: Optional[str] = None, limit: int = 50) -> list[dict[str, Any]]:
+    query = db.collection(INCIDENTS)
+    if workspace_id is not None:
+        query = query.where("workspace_id", "==", workspace_id)
+    docs = query.limit(limit).stream()
+    return [{"incident_id": doc.id, **doc.to_dict()} for doc in docs]
+
+
+# ── Notifications (Ch.19, Phase 10) ──────────────────────────────────────
+# The dashboard-facing half of an escalation — a notification doc is
+# created alongside (not instead of) an incident report, same event, two
+# different audiences: the incident report is the durable investigation
+# record, the notification is what the Providers/dashboard bell actually
+# renders and can be dismissed. One doc per notification, keyed by
+# workspace_id so a user only ever sees their own workspace's alerts —
+# same tenant-isolation shape as PROVIDER_KEYS and SCHEDULES above.
+
+def create_notification(db, workspace_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    doc_ref = db.collection(NOTIFICATIONS).document()
+    payload = {**data, "workspace_id": workspace_id, "read": False, "created_at": _now_iso()}
+    doc_ref.set(payload)
+    return {"notification_id": doc_ref.id, **payload}
+
+
+def list_notifications(db, workspace_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    docs = (
+        db.collection(NOTIFICATIONS)
+        .where("workspace_id", "==", workspace_id)
+        .limit(limit)
+        .stream()
+    )
+    return [{"notification_id": doc.id, **doc.to_dict()} for doc in docs]
+
+
+def mark_notification_read(db, notification_id: str) -> None:
+    db.collection(NOTIFICATIONS).document(notification_id).set({"read": True}, merge=True)
