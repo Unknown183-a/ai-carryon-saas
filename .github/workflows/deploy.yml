@@ -132,6 +132,7 @@ jobs:
           image: ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
           region: ${{ env.CLOUD_RUN_REGION }}
           flags: --allow-unauthenticated --port=8080
+          env_vars: FIREBASE_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
           secrets: ${{ steps.compute_secrets.outputs.secrets_list }}
 
       # --- Worker: Celery needs to run continuously, which Cloud Run isn't
