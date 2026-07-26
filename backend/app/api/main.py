@@ -16,6 +16,14 @@ cron-triggered call, until Phase 9 picks a deploy target) hits to fire
 due channels' generate runs unattended (Ch.16). Gated by a system role
 token (`tenant_platform/security/permissions.py`'s
 `require_system_token`), not a Firebase user JWT.
+
+Phase 10: /internal/health-check is new — a second, independently-timed
+Scheduler-triggered route (same `require_system_token` gate as
+/internal/scheduler) that polls every infra dependency and escalates
+failures per Ch.19's retry-then-escalate table (see
+tenant_platform/monitoring/health_agent.py and alert_agent.py).
+/workspaces/{id}/notifications and /notifications/{id}/read are new too
+— the dashboard-facing half of that same escalation path.
 """
 
 import logging
@@ -27,7 +35,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware.rate_limit import RateLimitMiddleware
-from app.api.routers import channels, internal_scheduler, workspaces
+from app.api.routers import channels, internal_health, internal_scheduler, notifications, workspaces
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +58,8 @@ app.add_middleware(RateLimitMiddleware)
 app.include_router(channels.router)
 app.include_router(workspaces.router)
 app.include_router(internal_scheduler.router)
+app.include_router(internal_health.router)
+app.include_router(notifications.router)
 
 
 @app.on_event("startup")
