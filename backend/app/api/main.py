@@ -43,6 +43,17 @@ app = FastAPI(title="AI CarryON Gateway", version="0.1.0")
 
 # CORS — wide open for now during local development.
 # Tighten this to your actual frontend origin(s) before Phase 9 (Deployment).
+# Rate limiting — applies to every route, including unauthenticated ones
+# like /health (see rate_limit.py for how anonymous callers get keyed).
+# Added BEFORE CORSMiddleware so CORS ends up as the outermost layer —
+# Starlette wraps middleware in reverse add-order, so the last one added
+# runs first/outermost. This matters because RateLimitMiddleware returns
+# a 429 directly without calling call_next(); if CORS were the inner
+# layer, that early-return response would skip it entirely and reach
+# the browser with no Access-Control-Allow-Origin header, which the
+# browser then misreports as a CORS failure instead of a 429.
+app.add_middleware(RateLimitMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -50,10 +61,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Rate limiting — applies to every route, including unauthenticated ones
-# like /health (see rate_limit.py for how anonymous callers get keyed).
-app.add_middleware(RateLimitMiddleware)
 
 app.include_router(channels.router)
 app.include_router(workspaces.router)
