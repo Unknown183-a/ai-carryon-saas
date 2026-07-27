@@ -155,6 +155,8 @@ jobs:
             --no-cpu-throttling
             --min-instances=1
             --max-instances=1
+            --memory=2Gi
+            --cpu=2
             --port=8080
             --command=python,-m
             --args=app.workers.worker_entrypoint
