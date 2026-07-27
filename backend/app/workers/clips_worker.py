@@ -40,9 +40,18 @@ def _channel_pexels_key(channel_id: str) -> str | None:
         db = get_firestore()
         encrypted = get_provider_keys(db, channel_id)
         if not encrypted.get("pexels_api_key"):
+            import logging
+            logging.getLogger(__name__).error(
+                f"No pexels_api_key found in Firestore for channel_id={channel_id!r}. "
+                f"Stored fields present: {list(encrypted.keys())!r}"
+            )
             return None
         return decrypt_provider_keys(encrypted)["pexels_api_key"]
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).error(
+            f"Pexels key lookup/decrypt failed for channel_id={channel_id!r}: {e!r}"
+        )
         return None
 
 
