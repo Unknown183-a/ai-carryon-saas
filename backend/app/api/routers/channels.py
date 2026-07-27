@@ -24,12 +24,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
 from app.api.dependencies import get_current_user, get_firestore
-from app.database.firestore_collections import find_workspace_for_uid, list_channels_for_workspace
-from app.models.channel import ChannelCreateRequest
+from app.database.firestore_collections import (
+    find_workspace_for_uid,
+    get_provider_keys,
+    list_channels_for_workspace,
+    store_provider_keys,
+)
+from app.models.channel import ChannelCreateRequest, ProviderKeyStatus, ProviderKeys
 from app.services.generation_service import run_generation
 from tenant_platform.factory.factory import ChannelValidationError
 from tenant_platform.factory.factory import create_channel as factory_create_channel
 from tenant_platform.security.permissions import require_channel_access
+from tenant_platform.security.provider_keys import encrypt_provider_keys
 
 router = APIRouter(prefix="/channels", tags=["channels"])
 
@@ -71,6 +77,48 @@ def create_channel(
         return factory_create_channel(payload, workspace["workspace_id"], uid, db)
     except ChannelValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+
+
+def _status_from_stored(stored: dict) -> ProviderKeyStatus:
+    return ProviderKeyStatus(**{field: field in stored for field in ProviderKeyStatus.model_fields})
+
+
+@router.get("/{channel_id}/provider-keys", response_model=ProviderKeyStatus)
+def get_provider_key_status(
+    channel_doc: dict = Depends(require_channel_access),
+    db: Client = Depends(get_firestore),
+):
+    """Closes the Phase 11 gap: the Providers screen needs to know
+    which keys are already set for a channel so it can show connection
+    status. Goes through the same Ch.12e `require_channel_access` chain
+    as every other channel-scoped route, then returns booleans only —
+    never a decrypted value, per Ch.12d's rule that a stored provider
+    key is never returned from an API response.
+    """
+    stored = get_provider_keys(db, channel_doc["channel_id"])
+    return _status_from_stored(stored)
+
+
+@router.patch("/{channel_id}/provider-keys", response_model=ProviderKeyStatus)
+def update_provider_keys(
+    payload: ProviderKeys,
+    channel_doc: dict = Depends(require_channel_access),
+    db: Client = Depends(get_firestore),
+):
+    """Closes the other half of the Phase 11 gap: rotating or adding a
+    provider key without recreating the whole channel. Only fields the
+    caller actually supplies (non-None/non-empty) are touched —
+    `encrypt_provider_keys` already drops empty values, and this merges
+    the result into whatever's already stored rather than overwriting
+    the whole doc, so an omitted field keeps its existing value.
+    """
+    channel_id = channel_doc["channel_id"]
+    updates = encrypt_provider_keys(payload.model_dump())
+    if updates:
+        existing = get_provider_keys(db, channel_id)
+        existing.update(updates)
+        store_provider_keys(db, channel_id, existing)
+    return _status_from_stored(get_provider_keys(db, channel_id))
 
 
 @router.post("/{channel_id}/generate")

@@ -33,8 +33,28 @@ class ProviderKeys(BaseModel):
     groq_api_key: str | None = None
     openai_api_key: str | None = None
     elevenlabs_api_key: str | None = None
+    pexels_api_key: str | None = None
     google_cloud_project: str | None = None
     firebase_storage_bucket: str | None = None
+
+
+class ProviderKeyStatus(BaseModel):
+    """`GET /channels/{id}/provider-keys` response (Ch.12d, Phase 11 gap).
+
+    Booleans only, never decrypted values — per
+    `tenant_platform/security/provider_keys.py`'s own rule ("never
+    returned from an API response"). This tells the Providers screen
+    *whether* a key is set for this channel, not what it is.
+    """
+
+    youtube_oauth_token: bool = False
+    gemini_api_key: bool = False
+    groq_api_key: bool = False
+    openai_api_key: bool = False
+    elevenlabs_api_key: bool = False
+    pexels_api_key: bool = False
+    google_cloud_project: bool = False
+    firebase_storage_bucket: bool = False
 
 
 class ChannelCreateRequest(BaseModel):

@@ -54,7 +54,7 @@ export default function ChannelsPage() {
           {channels.map((c) => (
             <Link
               key={c.channel_id}
-              href={`/channels/${c.channel_id}`}
+              href={`/channels/view?id=${c.channel_id}`}
               className="flex items-center justify-between px-5 py-4 transition hover:bg-panel2"
             >
               <div>

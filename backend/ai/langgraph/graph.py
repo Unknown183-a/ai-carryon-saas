@@ -101,6 +101,7 @@ async def _enqueue_render(state: dict) -> dict:
     """
     from celery import chain
 
+    from app.workers.clips_worker import fetch_clips
     from app.workers.render_worker import render_video
     from app.workers.thumbnail_worker import generate_thumbnail
     from app.workers.upload_worker import upload_to_youtube
@@ -122,6 +123,7 @@ async def _enqueue_render(state: dict) -> dict:
     render_chain = chain(
         generate_voice.s(render_payload),
         generate_thumbnail.s(),
+        fetch_clips.s(),
         render_video.s(),
         upload_to_youtube.s(),
     )

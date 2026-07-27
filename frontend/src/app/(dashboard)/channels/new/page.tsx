@@ -67,7 +67,7 @@ export default function NewChannelPage() {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      router.replace(`/channels/${channel.channel_id}`);
+      router.replace(`/channels/view?id=${channel.channel_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create channel.");
     } finally {
@@ -251,6 +251,14 @@ export default function NewChannelPage() {
               type="password"
               className="field-input"
               onChange={(e) => updateProviderKey("elevenlabs_api_key", e.target.value)}
+            />
+          </Field>
+          <Field label="Pexels API key">
+            <input
+              type="password"
+              className="field-input"
+              onChange={(e) => updateProviderKey("pexels_api_key", e.target.value)}
+              placeholder="Background video clips for rendering — falls back to platform default"
             />
           </Field>
           <Field label="YouTube OAuth token">

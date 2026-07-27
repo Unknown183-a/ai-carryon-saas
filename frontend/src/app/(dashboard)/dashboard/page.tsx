@@ -72,7 +72,7 @@ export default function DashboardOverviewPage() {
               <li key={c.channel_id} className="flex items-center justify-between py-3">
                 <div>
                   <Link
-                    href={`/channels/${c.channel_id}`}
+                    href={`/channels/view?id=${c.channel_id}`}
                     className="font-medium text-paper hover:text-signal"
                   >
                     {c.name}

@@ -595,6 +595,55 @@ check("requesting a channel that doesn't exist at all gets 404, not 403", resp.s
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Test 4: GET/PATCH /channels/{id}/provider-keys — closes the Phase 11 gap
+# ═══════════════════════════════════════════════════════════════════════════
+print("\n=== Test 4: provider-keys connection status + rotation, and its own Ch.12e isolation ===")
+
+# Channel A was created with only gemini_api_key set.
+resp = client.get(f"/channels/{channel_a_id}/provider-keys", headers=headers_for("user_a"))
+check("GET provider-keys (own channel) returns 200", resp.status_code == 200)
+status = resp.json()
+check("gemini_api_key shows connected", status.get("gemini_api_key") is True)
+check("groq_api_key shows not connected", status.get("groq_api_key") is False)
+check("no decrypted value is ever present in the response", "user-a-super-secret-key" not in resp.text)
+
+# Rotate/add a key via PATCH — must not wipe the existing gemini key.
+resp = client.patch(
+    f"/channels/{channel_a_id}/provider-keys",
+    json={"groq_api_key": "user-a-new-groq-key"},
+    headers=headers_for("user_a"),
+)
+check("PATCH provider-keys (own channel) returns 200", resp.status_code == 200)
+status_after = resp.json()
+check("newly-added groq_api_key now shows connected", status_after.get("groq_api_key") is True)
+check("previously-set gemini_api_key is still connected (PATCH doesn't wipe it)", status_after.get("gemini_api_key") is True)
+
+stored_after = fake_db.collection("channel_provider_keys")._docs.get(channel_a_id, {})
+check(
+    "the rotated key was stored encrypted, not as plaintext",
+    stored_after.get("groq_api_key") is not None and stored_after["groq_api_key"] != "user-a-new-groq-key",
+)
+
+# Same Ch.12e isolation chain as every other channel-scoped route.
+resp = client.get(f"/channels/{channel_a_id}/provider-keys", headers=headers_for("user_b"))
+check("User B GETting User A's provider-keys gets 403", resp.status_code == 403)
+
+resp = client.patch(
+    f"/channels/{channel_a_id}/provider-keys",
+    json={"groq_api_key": "attempted-takeover-key"},
+    headers=headers_for("user_b"),
+)
+check("User B PATCHing User A's provider-keys gets 403", resp.status_code == 403)
+check(
+    "the attempted cross-tenant PATCH never touched User A's stored keys",
+    fake_db.collection("channel_provider_keys")._docs.get(channel_a_id, {}) == stored_after,
+)
+
+resp = client.get("/channels/does_not_exist/provider-keys", headers=headers_for("user_a"))
+check("GET provider-keys for an unknown channel gets 404, not 403", resp.status_code == 404)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 print(f"\n{'=' * 60}\n{passed} passed, {failed} failed\n{'=' * 60}")
 if failed:
     sys.exit(1)

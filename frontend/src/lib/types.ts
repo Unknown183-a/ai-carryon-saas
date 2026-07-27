@@ -36,6 +36,18 @@ export type ChannelCreateRequest = {
   provider_keys: ProviderKeys;
 };
 
+/** Mirrors backend/app/models/channel.py's ProviderKeyStatus — booleans
+ * only, since the backend never returns a decrypted key value. */
+export type ProviderKeyStatus = {
+  youtube_oauth_token: boolean;
+  gemini_api_key: boolean;
+  groq_api_key: boolean;
+  openai_api_key: boolean;
+  elevenlabs_api_key: boolean;
+  google_cloud_project: boolean;
+  firebase_storage_bucket: boolean;
+};
+
 export type Channel = {
   channel_id: string;
   workspace_id: string;

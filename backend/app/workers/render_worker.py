@@ -1,47 +1,47 @@
 """
-Render Worker (Ch.15: "Video rendering... Worker (FFmpeg)... 1-4 minutes"
-— by far the slowest job in the chain, which is the whole reason this
-phase exists: this can't run inside an HTTP request-response cycle).
-
-Combines this run's audio (voice_worker) and thumbnail image
-(thumbnail_worker) into a finished MP4 — a Ken Burns-style slow zoom on
-the still thumbnail for the audio's full duration, silence-padded frame
-so `ffmpeg -shortest` never clips the voiceover a frame early. Shells
-out to the real `ffmpeg` binary via `subprocess` rather than a Python
-wrapper library (ffmpeg-python, moviepy) — this project's established
-convention for external processes/services (see qdrant_client.py's
-module docstring: thin wrapper over the real thing beats a heavier SDK
-at this project's scale) extends naturally to "call the real CLI
-tool directly" here too.
-
-**"keep the existing `-crf 28 -threads 1` OOM fix from the old
-pipeline"** (this phase's PHASE.md) — ported unchanged, per this
-project's history: "FFmpeg OOM fix: `-crf 28 -threads 1`, combined
-concat+scale into single pass." `-threads 1` caps FFmpeg's own internal
-parallelism so it doesn't spawn enough encoder threads to blow past a
-memory-constrained worker's limit (the old pipeline's dev machine was an
-8GB-RAM MacBook Air, per this project's build history — the same
-constraint likely applies to a small/free-tier worker container here).
-`-crf 28` trades a little visual quality for a smaller intermediate
-buffer than FFmpeg's default `-crf 23`. Both flags are cheap insurance
-that cost nothing on a beefier machine and prevent a real, previously-hit
-OOM kill on a small one — kept exactly as before rather than re-tuned,
-since there's no new evidence to tune against yet.
+Render Worker -- updated to stitch together background video clips
+fetched by clips_worker.py (Pexels stock footage) instead of the
+original single-static-thumbnail Ken Burns zoom. The thumbnail PNG is
+untouched -- still generated separately and passed to upload_worker.py
+for YouTube's thumbnail slot only, matching the base project's
+image_agent.py / thumbnail_agent.py separation.
 """
 
 from __future__ import annotations
 
+import json
 import subprocess
 from typing import Any
 
 from app.workers.celery_app import celery_app
 from app.workers.storage import run_dir
 
-# Ken Burns zoom: a slow linear zoom-in over the clip's full length.
-# 1.0 -> ~1.08 over a typical 45s Short is a subtle, non-nauseating
-# amount of motion on a still image — matches the "Ken Burns zoom" note
-# in this project's video-quality history without over-animating it.
-_ZOOM_FILTER = "zoompan=z='min(zoom+0.0007,1.08)':d=1:s=1080x1920:fps=30"
+TARGET_SIZE = (1080, 1920)
+
+
+def _audio_duration_seconds(audio_path: str) -> float:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", audio_path],
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
+    data = json.loads(result.stdout)
+    return float(data["format"]["duration"])
+
+
+def _build_filter_complex(clip_count: int, per_clip_seconds: float) -> str:
+    w, h = TARGET_SIZE
+    parts = []
+    concat_inputs = []
+    for i in range(clip_count):
+        parts.append(
+            f"[{i}:v]trim=duration={per_clip_seconds:.3f},setpts=PTS-STARTPTS,"
+            f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}[v{i}]"
+        )
+        concat_inputs.append(f"[v{i}]")
+    concat_line = "".join(concat_inputs) + f"concat=n={clip_count}:v=1:a=0[outv]"
+    return ";".join(parts) + ";" + concat_line
 
 
 @celery_app.task(
@@ -55,20 +55,24 @@ def render_video(payload: dict[str, Any]) -> dict[str, Any]:
     channel_id = payload["channel_id"]
     run_id = payload["run_id"]
     audio_path = payload["audio_path"]
-    thumbnail_path = payload["thumbnail_path"]
+    clip_paths: list[str] = payload["clip_paths"]
 
     output_path = run_dir(channel_id, run_id) / "final.mp4"
 
-    # Single-pass: loop the still image, apply the zoompan filter, mux in
-    # the voice track, stop at whichever stream is shorter (the padded
-    # image loop, effectively -shortest lets the audio determine length).
-    command = [
-        "ffmpeg",
-        "-y",  # overwrite output_path if a previous attempt left one (retry-safe)
-        "-loop", "1",
-        "-i", thumbnail_path,
-        "-i", audio_path,
-        "-vf", _ZOOM_FILTER,
+    duration = _audio_duration_seconds(audio_path)
+    per_clip_seconds = duration / len(clip_paths)
+    filter_complex = _build_filter_complex(len(clip_paths), per_clip_seconds)
+
+    command = ["ffmpeg", "-y"]
+    for clip_path in clip_paths:
+        command += ["-i", clip_path]
+    command += ["-i", audio_path]
+
+    audio_input_index = len(clip_paths)
+    command += [
+        "-filter_complex", filter_complex,
+        "-map", "[outv]",
+        "-map", f"{audio_input_index}:a",
         "-c:v", "libx264",
         "-c:a", "aac",
         "-crf", "28",
@@ -78,11 +82,6 @@ def render_video(payload: dict[str, Any]) -> dict[str, Any]:
         str(output_path),
     ]
 
-    subprocess.run(
-        command,
-        check=True,
-        capture_output=True,
-        timeout=15 * 60,  # generous ceiling well above the ~1-4 min typical duration (Ch.15's table)
-    )
+    subprocess.run(command, check=True, capture_output=True, timeout=15 * 60)
 
     return {**payload, "video_path": str(output_path)}

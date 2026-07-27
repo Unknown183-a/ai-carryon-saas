@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { apiFetch, fetchHealth } from "@/lib/api";
 import type { Channel, GenerateRunResult } from "@/lib/types";
 import StatusDot from "@/components/StatusDot";
@@ -15,7 +16,13 @@ import StatusDot from "@/components/StatusDot";
 // nothing else on this page needs to change.
 const POLL_INTERVAL_MS = 15_000;
 
-export default function ChannelDetailPage({ params }: { params: { id: string } }) {
+export default function ChannelDetailPage() {
+  // Static export freezes the `params` prop to build time (only the
+  // placeholder id from generateStaticParams()) -- useParams() instead
+  // reads the browser's actual current URL client-side after hydration,
+  // so this works for any real channel id.
+  const searchParams = useSearchParams();
+  const params = { id: searchParams.get("id") ?? "" };
   const [channel, setChannel] = useState<Channel | null>(null);
   const [gatewayUp, setGatewayUp] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
