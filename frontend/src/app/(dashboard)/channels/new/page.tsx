@@ -257,7 +257,7 @@ export default function NewChannelPage() {
             <input
               type="password"
               className="field-input"
-              onChange={(e) => updateProviderKey("pexels_api_key" as keyof ProviderKeys, e.target.value)}
+              onChange={(e) => updateProviderKey("pexels_api_key", e.target.value)}
               placeholder="Background video clips for rendering — falls back to platform default"
             />
           </Field>
