@@ -18,6 +18,7 @@ export type ProviderKeys = {
   elevenlabs_api_key?: string;
   google_cloud_project?: string;
   firebase_storage_bucket?: string;
+  pexels_api_key?: string;
 };
 
 export type ChannelCreateRequest = {
