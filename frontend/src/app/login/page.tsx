@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { getFirebaseAuth } from "@/lib/firebase";
 
 export default function LoginPage() {
   const { signIn } = useAuth();
@@ -19,7 +20,16 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await signIn(email, password);
-      router.replace("/dashboard");
+      // Ch.12g — signIn() succeeding just means the credentials were
+      // right; it says nothing about email verification. Check the flag
+      // directly off the freshly-signed-in Firebase user before deciding
+      // where to send them.
+      const current = getFirebaseAuth().currentUser;
+      if (current && !current.emailVerified) {
+        router.replace("/verify-email");
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (err) {
       setError(err instanceof Error ? readableAuthError(err.message) : "Sign in failed.");
     } finally {

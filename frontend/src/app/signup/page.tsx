@@ -32,7 +32,9 @@ export default function SignupPage() {
       await signUp(email, password);
       // Ch.12c: workspace creation happens automatically in AuthProvider
       // the moment onAuthStateChanged sees this new user.
-      router.replace("/dashboard");
+      // Ch.12g: the account isn't usable yet — it needs a verified email
+      // first, so send them to the holding screen, not the dashboard.
+      router.replace("/verify-email");
     } catch (err) {
       setError(err instanceof Error ? readableAuthError(err.message) : "Could not create account.");
     } finally {

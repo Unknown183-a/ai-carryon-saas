@@ -21,6 +21,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   sendPasswordResetEmail,
   confirmPasswordReset,
   verifyPasswordResetCode,
@@ -44,6 +45,10 @@ type AuthContextValue = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Ch.12g — email verification. Fired automatically right after
+   * signUp(); exposed separately too so the "check your inbox" screen
+   * can offer a "resend" button without re-running signup. */
+  resendVerificationEmail: () => Promise<void>;
   /** Ch.12f — "Forgot password". Always resolves the same way whether or
    * not the email is registered; Firebase's own enumeration-protection
    * setting (Console → Authentication → Settings → User actions) is what
@@ -56,6 +61,15 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+// Ch.12g — where the verification link (hosted on Firebase's own action
+// page) sends the user once they've clicked it and it's been applied.
+function verificationActionCodeSettings(): ActionCodeSettings {
+  return {
+    url: `${window.location.origin}/login?verified=1`,
+    handleCodeInApp: false,
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -94,11 +108,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signUp(email: string, password: string) {
     setError(null);
-    await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
+    const { user: newUser } = await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
+    // Ch.12g — fire the verification email as part of signup itself, not
+    // as a separate step the caller has to remember.
+    await sendEmailVerification(newUser, verificationActionCodeSettings());
   }
 
   async function signOut() {
     await firebaseSignOut(getFirebaseAuth());
+  }
+
+  async function resendVerificationEmail() {
+    setError(null);
+    const current = getFirebaseAuth().currentUser;
+    if (!current) {
+      throw new Error("You need to be signed in to resend a verification email.");
+    }
+    await sendEmailVerification(current, verificationActionCodeSettings());
   }
 
   async function forgotPassword(email: string) {
@@ -134,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signUp,
         signOut,
+        resendVerificationEmail,
         forgotPassword,
         resetPassword,
       }}
