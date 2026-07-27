@@ -28,6 +28,7 @@ from app.database.firestore_collections import (
     find_workspace_for_uid,
     get_provider_keys,
     list_channels_for_workspace,
+    list_runs_for_channel,
     store_provider_keys,
 )
 from app.models.channel import ChannelCreateRequest, ProviderKeyStatus, ProviderKeys
@@ -121,11 +122,29 @@ def update_provider_keys(
     return _status_from_stored(get_provider_keys(db, channel_id))
 
 
+@router.get("/{channel_id}/runs")
+def list_channel_runs(
+    channel_id: str,
+    channel_doc: dict = Depends(require_channel_access),
+    db: Client = Depends(get_firestore),
+):
+    """Closes the Phase 11 Logs gap: every finished (or errored) pipeline
+    run for this channel, most recent first, including the step-by-step
+    `run_log` LangGraph already accumulates per run
+    (`ai.langgraph.state.PipelineState.run_log`) but which nothing
+    persisted anywhere until now. Same `require_channel_access` gate as
+    every other channel-scoped route — a run doc belongs to the channel
+    that triggered it, same isolation guarantee as provider keys.
+    """
+    return list_runs_for_channel(db, channel_id)
+
+
 @router.post("/{channel_id}/generate")
 async def generate_video(
     channel_id: str,
     channel_doc: dict = Depends(require_channel_access),
     user: dict = Depends(get_current_user),
+    db: Client = Depends(get_firestore),
 ):
     """Runs the full Trend -> Research -> Planner -> Parallel(6) ->
     Review pipeline for one channel and returns the reviewed script +
@@ -145,4 +164,4 @@ async def generate_video(
     Scheduler-triggered run and a human-triggered run can never drift
     into different behavior.
     """
-    return await run_generation(channel_id, channel_doc, user["uid"])
+    return await run_generation(channel_id, channel_doc, user["uid"], db=db)

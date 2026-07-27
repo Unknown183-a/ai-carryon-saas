@@ -27,10 +27,16 @@ import uuid
 from typing import Any
 
 from ai.langgraph.graph import get_graph
+from app.database.firestore_collections import record_run
 from tenant_platform.channels.brain import load_channel_brain
 
 
-async def run_generation(channel_id: str, channel_doc: dict[str, Any], triggered_by_uid: str) -> dict[str, Any]:
+async def run_generation(
+    channel_id: str,
+    channel_doc: dict[str, Any],
+    triggered_by_uid: str,
+    db: Any = None,
+) -> dict[str, Any]:
     """Runs the full Trend -> Research -> Planner -> Parallel(6) ->
     Review pipeline for one channel and returns the same response shape
     `POST /channels/{id}/generate` has returned since Phase 6/7.
@@ -41,20 +47,44 @@ async def run_generation(channel_id: str, channel_doc: dict[str, Any], triggered
     (`internal_scheduler.py`) it's the channel's `owner_uid`, since
     there's no human caller to attribute the run to, but the pipeline
     still needs *some* uid for anything downstream that logs/keys by it.
+
+    Phase 11: `db` is optional (defaults to `None`) purely so every
+    existing caller/test that constructs this function's arguments by
+    hand doesn't break — passing it in wires up `record_run` so this
+    run shows up on the Logs screen. If `db` is `None`, run logging is
+    silently skipped (the pipeline itself still runs); it's on each
+    caller (both real ones already do) to actually pass a Firestore
+    client through.
     """
     brain = load_channel_brain(channel_doc)
+    run_id = str(uuid.uuid4())
 
     initial_state = {
         "channel_id": channel_id,
         "parent_uid": triggered_by_uid,
-        "run_id": str(uuid.uuid4()),
+        "run_id": run_id,
         "channel_config": brain.to_pipeline_config(),
     }
 
     graph = get_graph()
-    final_state = await graph.ainvoke(initial_state)
+    try:
+        final_state = await graph.ainvoke(initial_state)
+    except Exception as exc:  # noqa: BLE001 — still record the attempt before re-raising
+        if db is not None:
+            record_run(
+                db,
+                channel_id,
+                {
+                    "run_id": run_id,
+                    "triggered_by_uid": triggered_by_uid,
+                    "status": "error",
+                    "failure_reason": str(exc),
+                    "run_log": ["error:unhandled_exception"],
+                },
+            )
+        raise
 
-    return {
+    result = {
         "run_id": final_state["run_id"],
         "status": final_state.get("status"),
         "topic": final_state.get("topic"),
@@ -69,4 +99,10 @@ async def run_generation(channel_id: str, channel_doc: dict[str, Any], triggered
         "failure_reason": final_state.get("failure_reason"),
         "render_task_id": final_state.get("render_task_id"),
         "render_status": final_state.get("render_status"),
+        "run_log": final_state.get("run_log", []),
     }
+
+    if db is not None:
+        record_run(db, channel_id, {**result, "triggered_by_uid": triggered_by_uid})
+
+    return result

@@ -83,6 +83,7 @@ async def run_due_channels(db: Client = Depends(get_firestore)) -> dict[str, Any
                 channel_id,
                 channel_doc,
                 triggered_by_uid=channel_doc.get("owner_uid", "system:scheduler"),
+                db=db,
             )
             results.append(
                 {

@@ -16,9 +16,9 @@ export type ProviderKeys = {
   groq_api_key?: string;
   openai_api_key?: string;
   elevenlabs_api_key?: string;
+  pexels_api_key?: string;
   google_cloud_project?: string;
   firebase_storage_bucket?: string;
-  pexels_api_key?: string;
 };
 
 export type ChannelCreateRequest = {
@@ -45,6 +45,7 @@ export type ProviderKeyStatus = {
   groq_api_key: boolean;
   openai_api_key: boolean;
   elevenlabs_api_key: boolean;
+  pexels_api_key: boolean;
   google_cloud_project: boolean;
   firebase_storage_bucket: boolean;
 };
@@ -66,6 +67,22 @@ export type Channel = {
   preferred_model: string;
   voice_profile?: string | null;
   thumbnail_style?: string | null;
+};
+
+/** One entry from GET /channels/{id}/runs — mirrors what
+ * `record_run` persists in Firestore's `channel_runs` collection. */
+export type RunSummary = {
+  run_id: string;
+  channel_id: string;
+  created_at: string;
+  triggered_by_uid?: string;
+  status?: string; // "reviewed" | "failed" | "error" | string
+  topic?: string;
+  review_verdict?: "pass" | "fail" | string;
+  failure_reason?: string | null;
+  render_task_id?: string | null;
+  render_status?: string | null;
+  run_log: string[];
 };
 
 export type GenerateRunResult = {

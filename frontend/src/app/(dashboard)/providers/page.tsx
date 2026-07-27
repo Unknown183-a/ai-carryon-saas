@@ -10,6 +10,7 @@ const PROVIDER_LABELS: Record<keyof ProviderKeyStatus, string> = {
   groq_api_key: "Groq",
   openai_api_key: "OpenAI",
   elevenlabs_api_key: "ElevenLabs",
+  pexels_api_key: "Pexels",
   youtube_oauth_token: "YouTube",
   google_cloud_project: "Google Cloud",
   firebase_storage_bucket: "Firebase Storage",

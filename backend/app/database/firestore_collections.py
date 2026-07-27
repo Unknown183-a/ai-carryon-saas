@@ -26,6 +26,7 @@ PROVIDER_KEYS = "channel_provider_keys"
 SCHEDULES = "schedules"  # Phase 8 (Ch.16) — one doc per channel, keyed by channel_id
 INCIDENTS = "incidents"  # Phase 10 (Ch.19) — one doc per escalation
 NOTIFICATIONS = "notifications"  # Phase 10 (Ch.19) — dashboard-facing half of an escalation
+RUN_LOGS = "channel_runs"  # Phase 11 — one doc per pipeline run, keyed by run_id
 
 
 def _now_iso() -> str:
@@ -98,6 +99,38 @@ def get_provider_keys(db, channel_id: str) -> dict[str, str]:
     if not snapshot.exists:
         return {}
     return snapshot.to_dict()
+
+
+# ── Run logs (Phase 11) ──────────────────────────────────────────────────
+# One doc per pipeline run (`run_id` from `ai.langgraph.state`'s initial
+# state), written once at the end of `run_generation` — LangGraph's
+# `run_log` field (Annotated[list[str], operator.add]) already
+# accumulates a "ran:<node>" / "skipped:<node>" entry per node for free;
+# this layer just persists that list plus the run's terminal summary
+# somewhere the Logs screen can actually query it from. Not written
+# incrementally mid-run (no per-node Firestore write) — `graph.ainvoke`
+# runs the whole graph in one call, so "when a node finishes" isn't an
+# event this layer ever observes; the trade-off is the Logs screen shows
+# a run only once it's finished (or failed), never live/in-progress.
+
+def record_run(db, channel_id: str, run_data: dict[str, Any]) -> dict[str, Any]:
+    run_id = run_data["run_id"]
+    payload = {"channel_id": channel_id, "created_at": _now_iso(), **run_data}
+    db.collection(RUN_LOGS).document(run_id).set(payload)
+    return payload
+
+
+def list_runs_for_channel(db, channel_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    """Most recent runs first. Firestore requires an index for
+    `where(...).order_by(...)` on different fields, which this project's
+    Firestore access layer avoids elsewhere (see `list_enabled_schedules`'s
+    docstring) — so this orders in Python instead, same trade-off, fine
+    at the `limit` sizes a single channel's log view actually needs.
+    """
+    docs = db.collection(RUN_LOGS).where("channel_id", "==", channel_id).stream()
+    runs = [doc.to_dict() for doc in docs]
+    runs.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+    return runs[:limit]
 
 
 # ── Schedules (Ch.16) ────────────────────────────────────────────────────
