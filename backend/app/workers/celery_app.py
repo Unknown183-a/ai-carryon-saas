@@ -76,6 +76,7 @@ celery_app = Celery(
     broker=_broker_url,
     backend=_broker_url,
     include=[
+        "app.workers.clips_worker",
         "app.workers.voice_worker",
         "app.workers.thumbnail_worker",
         "app.workers.render_worker",
