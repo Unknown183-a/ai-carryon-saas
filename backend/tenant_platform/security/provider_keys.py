@@ -54,3 +54,34 @@ def decrypt_provider_keys(encrypted_keys: dict[str, str]) -> dict[str, str]:
     """
     fernet = _fernet()
     return {field: fernet.decrypt(value.encode("utf-8")).decode("utf-8") for field, value in encrypted_keys.items()}
+
+
+# ── OAuth state signing (Ch.12d extension: self-serve YouTube connect) ────
+# The /connect-youtube -> Google consent -> /oauth/youtube/callback round
+# trip has no Firebase JWT on the callback leg (Google redirects the
+# browser directly, unauthenticated as far as this app is concerned) — so
+# `state` has to both identify which channel this is for AND prove the
+# callback actually originated from a request that already passed
+# `require_channel_access`. Reusing the same Fernet key already
+# provisioned for provider keys avoids introducing a second secret for
+# what is, functionally, the same "prove you're allowed to touch this
+# channel_id" guarantee Ch.12e already makes elsewhere.
+
+OAUTH_STATE_TTL_SECONDS = 600  # 10 minutes — a user completing a Google
+# consent screen takes seconds, not minutes; short-lived on purpose so an
+# old, possibly-logged URL can't be replayed later.
+
+
+def sign_channel_state(channel_id: str) -> str:
+    return _fernet().encrypt(channel_id.encode("utf-8")).decode("utf-8")
+
+
+def verify_channel_state(state: str) -> str:
+    """Returns the channel_id if `state` is a valid, non-expired token
+    from `sign_channel_state`. Raises `cryptography.fernet.InvalidToken`
+    (expired or tampered) — the caller (the callback route) turns that
+    into a 400, same as any other bad-input case.
+    """
+    from cryptography.fernet import Fernet  # noqa: F401 — triggers the same import error early as _fernet()
+
+    return _fernet().decrypt(state.encode("utf-8"), ttl=OAUTH_STATE_TTL_SECONDS).decode("utf-8")

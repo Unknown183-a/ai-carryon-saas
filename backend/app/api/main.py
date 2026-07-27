@@ -35,7 +35,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware.rate_limit import RateLimitMiddleware
-from app.api.routers import channels, internal_health, internal_scheduler, notifications, workspaces
+from app.api.routers import channels, internal_health, internal_scheduler, notifications, oauth_youtube, workspaces
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,7 @@ app.include_router(workspaces.router)
 app.include_router(internal_scheduler.router)
 app.include_router(internal_health.router)
 app.include_router(notifications.router)
+app.include_router(oauth_youtube.router)
 
 
 @app.on_event("startup")
