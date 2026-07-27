@@ -32,8 +32,17 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+# --concurrency=1: video rendering (FFmpeg encode + mux) is memory-hungry
+# enough on its own that letting Celery's default prefork pool spin up one
+# worker process per vCPU (concurrency=4 on this service's 2 vCPUs) caused
+# repeated OOM kills mid-render even at 2Gi -- multiple renders sharing one
+# container's memory pool. Capping to 1 means a render task gets the whole
+# container to itself; throughput for concurrent renders should come from
+# scaling instances (--max-instances), not from packing more prefork workers
+# into one container.
 CELERY_CMD = [
     "celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info",
+    "--concurrency=1",
 ]
 
 
