@@ -47,7 +47,7 @@ def generate_voice(payload: dict[str, Any]) -> dict[str, Any]:
     script = payload["script"]
     voice_profile = payload.get("voice_profile")
 
-    audio_bytes = generate_speech(text=script, voice_profile=voice_profile)
+    audio_bytes = generate_speech(text=script, voice_profile=voice_profile, channel_id=channel_id)
 
     audio_path = run_dir(channel_id, run_id) / "voice.mp3"
     audio_path.write_bytes(audio_bytes)

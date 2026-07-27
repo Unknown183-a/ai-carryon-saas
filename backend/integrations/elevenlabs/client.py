@@ -41,18 +41,48 @@ def resolve_voice_id(voice_profile: str | None) -> str:
     return VOICE_PROFILE_MAP.get(voice_profile, DEFAULT_VOICE_ID)
 
 
-def generate_speech(text: str, voice_profile: str | None, timeout: float = 60.0) -> bytes:
+def _elevenlabs_key(channel_id: str | None) -> str:
+    """Per-channel ElevenLabs key from Firestore (Ch.12d provider-keys
+    pattern, same as clips_worker.py's Pexels lookup), falling back to
+    the platform-wide ELEVENLABS_API_KEY env var so channels that
+    haven't been given their own key yet keep working off the shared
+    default.
+    """
+    if channel_id:
+        try:
+            from app.api.dependencies import get_firestore
+            from app.database.firestore_collections import get_provider_keys
+            from tenant_platform.security.provider_keys import decrypt_provider_keys
+
+            db = get_firestore()
+            encrypted = get_provider_keys(db, channel_id)
+            if encrypted.get("elevenlabs_api_key"):
+                return decrypt_provider_keys(encrypted)["elevenlabs_api_key"]
+        except Exception as e:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).error(
+                f"ElevenLabs channel key lookup/decrypt failed for channel_id={channel_id!r}: {e!r}"
+            )
+
+    api_key = os.environ.get("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            f"No ElevenLabs API key available for channel_id={channel_id!r}: "
+            "neither a channel-specific key nor ELEVENLABS_API_KEY is set."
+        )
+    return api_key
+
+
+def generate_speech(
+    text: str, voice_profile: str | None, channel_id: str | None = None, timeout: float = 60.0
+) -> bytes:
     """Returns raw MP3 bytes for `text` spoken in the resolved voice.
     Raises on any transport/HTTP error — retry is the caller's job (the
     Celery task's `autoretry_for`, per celery_app.py's module docstring),
     same division of responsibility as web_search.py's "one attempt,
     raise on failure" convention.
     """
-    api_key = os.environ.get("ELEVENLABS_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "ELEVENLABS_API_KEY is not set. Add it to .env to enable voice generation."
-        )
+    api_key = _elevenlabs_key(channel_id)
 
     voice_id = resolve_voice_id(voice_profile)
     response = httpx.post(
