@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { reload } from "firebase/auth";
+import { reload, deleteUser } from "firebase/auth";
 import { useAuth } from "@/lib/auth-context";
 import { getFirebaseAuth } from "@/lib/firebase";
 
@@ -23,6 +23,8 @@ export default function VerifyEmailPage() {
   const [resendError, setResendError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [startOverState, setStartOverState] = useState<"idle" | "working">("idle");
+  const [startOverError, setStartOverError] = useState<string | null>(null);
 
   // Not signed in at all → nothing to verify, send them to log in.
   useEffect(() => {
@@ -80,6 +82,29 @@ export default function VerifyEmailPage() {
     }
   }
 
+  // Ch.12h — for a genuine typo (not an attack), there's otherwise no way
+  // out: the link went to someone else's inbox, so it will never be
+  // clicked. Safe to delete outright here since an unverified account has
+  // no real data attached to it yet — nothing is lost by starting over.
+  async function handleStartOver() {
+    setStartOverError(null);
+    const current = getFirebaseAuth().currentUser;
+    if (!current) {
+      router.replace("/signup");
+      return;
+    }
+    setStartOverState("working");
+    try {
+      await deleteUser(current);
+      router.replace("/signup");
+    } catch (err) {
+      setStartOverState("idle");
+      setStartOverError(
+        err instanceof Error ? err.message : "Could not remove that account. Please try again."
+      );
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm text-center">
@@ -122,6 +147,21 @@ export default function VerifyEmailPage() {
           className="mt-4 text-sm text-slate hover:underline"
         >
           Sign out
+        </button>
+
+        {startOverError && (
+          <p className="mt-4 rounded-md border border-danger/30 bg-dangerDim px-3 py-2 text-sm text-danger">
+            {startOverError}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={handleStartOver}
+          disabled={startOverState === "working"}
+          className="mt-2 text-sm text-slate hover:underline"
+        >
+          {startOverState === "working" ? "Removing account…" : "Wrong email? Start over"}
         </button>
       </div>
     </div>
