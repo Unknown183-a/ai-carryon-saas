@@ -21,7 +21,11 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  confirmPasswordReset,
+  verifyPasswordResetCode,
   signOut as firebaseSignOut,
+  type ActionCodeSettings,
   type User,
 } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase";
@@ -40,6 +44,15 @@ type AuthContextValue = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Ch.12f — "Forgot password". Always resolves the same way whether or
+   * not the email is registered; Firebase's own enumeration-protection
+   * setting (Console → Authentication → Settings → User actions) is what
+   * makes that true at the network level, not this function. */
+  forgotPassword: (email: string) => Promise<void>;
+  /** Ch.12f — second half of the flow: verifies the oobCode from the
+   * emailed link is still valid, then sets the new password. Throws if
+   * the code is invalid/expired/already used. */
+  resetPassword: (oobCode: string, newPassword: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -88,9 +101,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await firebaseSignOut(getFirebaseAuth());
   }
 
+  async function forgotPassword(email: string) {
+    setError(null);
+    // handleCodeInApp: true — the emailed link lands the user directly
+    // back on THIS app's /reset-password page (with ?oobCode=... in the
+    // URL) instead of Firebase's own hosted default action page. That's
+    // the "automatically come back to our UI" behavior.
+    const actionCodeSettings: ActionCodeSettings = {
+      url: `${window.location.origin}/reset-password`,
+      handleCodeInApp: true,
+    };
+    await sendPasswordResetEmail(getFirebaseAuth(), email, actionCodeSettings);
+  }
+
+  async function resetPassword(oobCode: string, newPassword: string) {
+    setError(null);
+    // Throws (invalid/expired/used code) before ever touching the
+    // password — same "verify identity, then act" order described in
+    // Ch.12f. Getting the email back here also lets the reset-password
+    // page show "resetting password for you@studio.com" if you want it.
+    await verifyPasswordResetCode(getFirebaseAuth(), oobCode);
+    await confirmPasswordReset(getFirebaseAuth(), oobCode, newPassword);
+  }
+
   return (
     <AuthContext.Provider
-      value={{ user, workspace, loading, error, signIn, signUp, signOut }}
+      value={{
+        user,
+        workspace,
+        loading,
+        error,
+        signIn,
+        signUp,
+        signOut,
+        forgotPassword,
+        resetPassword,
+      }}
     >
       {children}
     </AuthContext.Provider>
