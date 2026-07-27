@@ -30,4 +30,14 @@ async def tags_node(state: dict[str, Any]) -> dict[str, Any]:
     )
     tags = parse_json_response(raw)
 
+    # Normalize: LLM may return a list, a comma/space-separated string,
+    # or a dict like {"tags": [...]} depending on prompt drift.
+    if isinstance(tags, dict):
+        tags = tags.get("tags", [])
+    if isinstance(tags, str):
+        tags = [t.strip().lstrip("#") for t in tags.replace(",", " ").split() if t.strip()]
+    if not isinstance(tags, list):
+        tags = []
+    tags = [str(t) for t in tags if t]
+
     return {"tags": tags, "run_log": [f"ran:{AGENT_NAME}"]}
