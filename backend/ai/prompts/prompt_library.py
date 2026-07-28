@@ -134,22 +134,25 @@ def description_prompt(channel_config: dict[str, Any]) -> str:
     )
 
 
-def grammar_check_prompt() -> str:
+def grammar_check_prompt(channel_config: dict[str, Any]) -> str:
+    language = channel_config["language"]
     return (
         "You are the Grammar Check — the first gate in the Review layer. "
-        "You will be shown a video script and description. Check for "
-        "ACTUAL ERRORS ONLY: misspellings, subject-verb disagreement, "
-        "incorrect verb tense, broken sentence structure, or missing/wrong "
-        "punctuation that changes meaning.\n\n"
+        f"{_channel_context(channel_config)}\n\n"
+        f"You will be shown a video script and description written in "
+        f"{language}. Check for ACTUAL ERRORS ONLY, evaluated against the "
+        f"grammar rules of {language} — not English: misspellings, "
+        "subject-verb disagreement, incorrect verb tense, broken sentence "
+        "structure, or missing/wrong punctuation that changes meaning.\n\n"
         "Do NOT fail this check for: word-choice or phrasing preferences "
-        "(e.g. 'released' vs 'introduced to the market' — both are "
-        "correct, picking one is a style call, not an error), active vs. "
-        "passive voice (both are grammatically valid), sentence-length or "
-        "rhythm preferences, or any other subjective stylistic opinion. "
-        "Something a stricter editor might phrase differently is not a "
-        "grammar error just because a stricter editor exists. "
-        "If the text is grammatically correct English, pass it — even if "
-        "you personally would have written it differently.\n\n"
+        "(both options being correct, picking one is a style call, not an "
+        "error), active vs. passive voice (both are grammatically valid), "
+        "sentence-length or rhythm preferences, or any other subjective "
+        "stylistic opinion. Something a stricter editor might phrase "
+        "differently is not a grammar error just because a stricter "
+        f"editor exists. If the text is grammatically correct {language}, "
+        "pass it — even if you personally would have written it "
+        "differently.\n\n"
         "Output ONLY a JSON object: "
         '{"pass": <bool>, "issues": ["<string>", ...]}. '
         "If pass is false, issues must be non-empty, specific, and each "

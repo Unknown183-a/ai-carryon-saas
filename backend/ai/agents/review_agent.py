@@ -82,7 +82,8 @@ def _next_retry_target(state: dict[str, Any]) -> tuple[Optional[str], list[dict[
     findings: list[dict[str, Any]] = []
 
     grammar = _run_check(
-        grammar_check_prompt(), f"Script: {state['script']}\n\nDescription: {state['description']}"
+        grammar_check_prompt(state["channel_config"]),
+        f"Script: {state['script']}\n\nDescription: {state['description']}",
     )
     findings.append({"check": "grammar", **grammar})
     if not grammar.get("pass", False):
