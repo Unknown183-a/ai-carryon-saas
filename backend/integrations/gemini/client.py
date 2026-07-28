@@ -21,10 +21,16 @@ from typing import Optional
 from google import genai
 from google.genai import types
 
+from ai.models.provider_key_context import gemini_key_override
+
 _client: Optional[genai.Client] = None
 
 
 def _get_client() -> genai.Client:
+    override = gemini_key_override.get()
+    if override:
+        return genai.Client(api_key=override)
+
     global _client
     if _client is None:
         api_key = os.environ.get("GEMINI_API_KEY")

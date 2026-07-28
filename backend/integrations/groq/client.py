@@ -14,10 +14,16 @@ from typing import Optional
 
 from groq import Groq
 
+from ai.models.provider_key_context import groq_key_override
+
 _client: Optional[Groq] = None
 
 
 def _get_client() -> Groq:
+    override = groq_key_override.get()
+    if override:
+        return Groq(api_key=override)
+
     global _client
     if _client is None:
         api_key = os.environ.get("GROQ_API_KEY")

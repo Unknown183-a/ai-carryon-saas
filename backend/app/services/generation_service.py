@@ -27,6 +27,7 @@ import uuid
 from typing import Any
 
 from ai.langgraph.graph import get_graph
+from ai.models.provider_key_context import gemini_key_override, groq_key_override
 from app.database.firestore_collections import record_run
 from tenant_platform.channels.brain import load_channel_brain
 
@@ -66,6 +67,22 @@ async def run_generation(
         "channel_config": brain.to_pipeline_config(),
     }
 
+    gemini_token = None
+    groq_token = None
+    if db is not None:
+        try:
+            from app.database.firestore_collections import get_provider_keys
+            from tenant_platform.security.provider_keys import decrypt_provider_keys
+
+            encrypted = get_provider_keys(db, channel_id)
+            decrypted = decrypt_provider_keys(encrypted) if encrypted else {}
+            if decrypted.get("gemini_api_key"):
+                gemini_token = gemini_key_override.set(decrypted["gemini_api_key"])
+            if decrypted.get("groq_api_key"):
+                groq_token = groq_key_override.set(decrypted["groq_api_key"])
+        except Exception:  # noqa: BLE001
+            pass
+
     graph = get_graph()
     try:
         final_state = await graph.ainvoke(initial_state)
@@ -83,6 +100,11 @@ async def run_generation(
                 },
             )
         raise
+
+    if gemini_token is not None:
+        gemini_key_override.reset(gemini_token)
+    if groq_token is not None:
+        groq_key_override.reset(groq_token)
 
     result = {
         "run_id": final_state["run_id"],
