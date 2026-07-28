@@ -118,7 +118,13 @@ def youtube_oauth_callback(
     flow.fetch_token(code=code)
     creds = flow.credentials
 
-    updates = encrypt_provider_keys({"youtube_oauth_token": creds.to_json()})
+    # integrations/youtube/client.py's _load_credentials() always
+    # base64-decodes whatever token it's given (that's the format
+    # YOUTUBE_TOKEN_B64, the platform-default fallback, is stored in) —
+    # so a per-channel token has to be stored the same way, or upload_video()
+    # will throw the moment this channel's own token is actually used.
+    token_b64 = base64.b64encode(creds.to_json().encode("utf-8")).decode("utf-8")
+    updates = encrypt_provider_keys({"youtube_oauth_token": token_b64})
     existing = get_provider_keys(db, channel_id)
     existing.update(updates)
     store_provider_keys(db, channel_id, existing)

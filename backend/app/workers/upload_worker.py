@@ -24,10 +24,13 @@ retryable upload failure that a few more attempts would likely clear.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.workers.celery_app import celery_app
 from integrations.youtube.client import upload_video
+
+logger = logging.getLogger(__name__)
 
 
 def _channel_youtube_token(channel_id: str) -> str | None:
@@ -37,6 +40,11 @@ def _channel_youtube_token(channel_id: str) -> str | None:
     Firestore isn't reachable, or the channel doesn't exist for any
     reason — an upload should still attempt the platform default rather
     than hard-fail on a lookup problem unrelated to the video itself.
+
+    Every fallback path is logged at WARNING now (previously silent) —
+    "falls back to platform default" was indistinguishable from "the
+    per-channel lookup is silently broken," which made exactly this bug
+    invisible from the outside.
     """
     try:
         from app.api.dependencies import get_firestore
@@ -46,9 +54,19 @@ def _channel_youtube_token(channel_id: str) -> str | None:
         db = get_firestore()
         encrypted = get_provider_keys(db, channel_id)
         if not encrypted.get("youtube_oauth_token"):
+            logger.warning(
+                "No youtube_oauth_token stored for channel_id=%s — "
+                "uploading with the platform-default YOUTUBE_TOKEN_B64 instead.",
+                channel_id,
+            )
             return None
         return decrypt_provider_keys(encrypted)["youtube_oauth_token"]
-    except Exception:  # noqa: BLE001 — see module docstring: fall back, don't hard-fail
+    except Exception as exc:  # noqa: BLE001 — see docstring: fall back, don't hard-fail
+        logger.warning(
+            "Per-channel YouTube token lookup failed for channel_id=%s (%s: %s) — "
+            "uploading with the platform-default YOUTUBE_TOKEN_B64 instead.",
+            channel_id, type(exc).__name__, exc,
+        )
         return None
 
 
