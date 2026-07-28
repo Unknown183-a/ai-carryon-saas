@@ -6,7 +6,7 @@
 |---|---|
 | **Active phase** | Phase 10 — Monitoring & Alerts is code-complete (health_agent.py, alert_agent.py, email/dashboard notifications, Firestore incidents — see below). Phase 9 (deployment) and Phase 11 (frontend) also built, both still with one operational gap each — see Blocking issue. |
 | **Last updated by** | Claude (Phase 9-11); Amit (auth verification add-on) |
-| **Last updated on** | 2026-07-27 |
+| **Last updated on** | 2026-07-28 |
 | **Blocking issue, if any** | **Phase 10** is code-complete and verified against real code paths (a real compiled LangGraph run, a real FastAPI `TestClient` request through the real `require_system_token` gate, a real simulated-Redis-outage-to-email run — see `tests/phase10_monitoring_test.py`, 24/24 passing) but **operationally unverified**: no real Redis/Qdrant/Firestore/YouTube/Resend credentials in this session, and no Cloud Scheduler job exists yet to actually call `/internal/health-check/run` on a timer (needs Phase 9's live Cloud Run URL to point at first). **Phase 9** itself is still one step from done: the GCP service account + repo secrets (`GCP_SA_KEY`, `GCP_PROJECT_ID`) haven't been created yet, so `deploy.yml`'s `deploy` job fails at the `auth` step (expected — `test`/`build` still pass). Carried over: Phase 7 still needs its real-keys smoke test, Phase 6's real Firebase/Firestore end-to-end pass is still open, and Phase 11's `npm run build` has never been run to completion. |
 | **Next concrete action** | Create the GCP service account + repo secrets per `docs/deployment/README.md`, merge to `main` to trigger the first real deploy of both Cloud Run services — that closes Phase 9. Then add one more Cloud Scheduler job (5 min interval) → `/internal/health-check/run` with the `INTERNAL_SCHEDULER_TOKEN` header — that closes Phase 10. Frontend: run `npm install && npm run build` for real; add the missing `GET/PATCH /channels/{id}/provider-keys` backend route. |
 | **Latest work report** | `work-reports/daily/2026-07-26-phase10-monitoring-alerts.md` (Phase 10); `work-reports/daily/2026-07-26-phase9-deployment.md` (Phase 9, deployment side-track) |
@@ -29,7 +29,7 @@ Built out of order on purpose — PHASE.md explicitly allows this ("Depends on: 
 
 - [x] Next.js 14 / TypeScript / Tailwind app in `frontend/`
 - [x] Login/Signup against Firebase Auth, auto-creates a Workspace on sign-in (Ch.12c)
-- [x] Email verification gate + forgot/reset password flow (Ch.12f-h) — signup sends a verification link, /verify-email holding screen polls and gates /dashboard, login re-checks emailVerified, "wrong email" start-over deletes unverified accounts; added 2026-07-27
+- [x] Passwordless email-link signup + forgot/reset password (Ch.12f, Ch.12i) — signup collects only email, no account exists until the emailed link is clicked at /complete-signup, which then sets a password; confirmed working end-to-end on live site 2026-07-28 (supersedes the 2026-07-27 verify-after-creation approach)
 - [x] Full nav: Dashboard, Channels, Analytics, Billing, API Providers, Team, Settings, Logs
 - [x] Create-Channel form — every field matches `backend/app/models/channel.py` exactly
 - [x] Live status view — polls `/health` (no WebSocket route exists on the backend yet)
