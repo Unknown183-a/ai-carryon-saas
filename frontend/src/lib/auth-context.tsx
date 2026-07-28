@@ -25,10 +25,20 @@ import {
   sendPasswordResetEmail,
   confirmPasswordReset,
   verifyPasswordResetCode,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  updatePassword,
   signOut as firebaseSignOut,
   type ActionCodeSettings,
   type User,
 } from "firebase/auth";
+
+// Ch.12i — key used to remember the address a signup link was sent to,
+// since Firebase's signInWithEmailLink() needs the email again once the
+// link is clicked (same-device flow; see completeSignupWithLink for the
+// cross-device fallback where this is missing).
+const PENDING_SIGNUP_EMAIL_KEY = "ai-carryon:pendingSignupEmail";
 import { getFirebaseAuth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
 
@@ -49,6 +59,27 @@ type AuthContextValue = {
    * signUp(); exposed separately too so the "check your inbox" screen
    * can offer a "resend" button without re-running signup. */
   resendVerificationEmail: () => Promise<void>;
+  /** Ch.12i — passwordless signup. No account exists yet at this point;
+   * Firebase just emails a sign-in link. Nothing is created until the
+   * user actually clicks it, so a typo'd email here creates nothing at
+   * all — there's no stuck/unverified account left behind to clean up. */
+  sendSignupLink: (email: string) => Promise<void>;
+  /** Ch.12i — call this on the page the emailed link points at. Verifies
+   * the link, creates+signs in the account (this IS account creation —
+   * clicking the link is the proof of ownership), and returns the user
+   * so the caller can move on to collecting a password. Throws if the
+   * link is invalid/expired, or if the email can't be recovered (see
+   * needsEmailForSignupLink below) and none was supplied. */
+  completeSignupWithLink: (url: string, emailOverride?: string) => Promise<User>;
+  /** True if the current URL is a valid signup link but we don't have
+   * the email stored locally to complete it with (e.g. link opened on a
+   * different device/browser than it was requested from) — the caller
+   * should prompt for the email and pass it to completeSignupWithLink. */
+  needsEmailForSignupLink: (url: string) => boolean;
+  /** Ch.12i — second half of passwordless signup: the account exists
+   * (verified, signed in via the link) but has no password yet. Sets
+   * one so future logins can use signIn() normally. */
+  setInitialPassword: (password: string) => Promise<void>;
   /** Ch.12f — "Forgot password". Always resolves the same way whether or
    * not the email is registered; Firebase's own enumeration-protection
    * setting (Console → Authentication → Settings → User actions) is what
@@ -68,6 +99,18 @@ function verificationActionCodeSettings(): ActionCodeSettings {
   return {
     url: `${window.location.origin}/login?verified=1`,
     handleCodeInApp: false,
+  };
+}
+
+// Ch.12i — handleCodeInApp: true here on purpose: unlike the old
+// verification link, THIS click has to land back in our own app (not
+// Firebase's hosted page), because completing sign-in and then setting a
+// password both have to run as real code, not just a "you're verified"
+// message.
+function signupLinkActionCodeSettings(): ActionCodeSettings {
+  return {
+    url: `${window.location.origin}/complete-signup`,
+    handleCodeInApp: true,
   };
 }
 
@@ -127,6 +170,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await sendEmailVerification(current, verificationActionCodeSettings());
   }
 
+  async function sendSignupLink(email: string) {
+    setError(null);
+    await sendSignInLinkToEmail(getFirebaseAuth(), email, signupLinkActionCodeSettings());
+    // Same-device convenience: signInWithEmailLink needs the email again.
+    // If they open the link on a different device/browser, it won't be
+    // here — completeSignupWithLink's caller handles that via
+    // needsEmailForSignupLink + a manual prompt.
+    window.localStorage.setItem(PENDING_SIGNUP_EMAIL_KEY, email);
+  }
+
+  function needsEmailForSignupLink(url: string): boolean {
+    if (!isSignInWithEmailLink(getFirebaseAuth(), url)) return false;
+    return !window.localStorage.getItem(PENDING_SIGNUP_EMAIL_KEY);
+  }
+
+  async function completeSignupWithLink(url: string, emailOverride?: string): Promise<User> {
+    setError(null);
+    if (!isSignInWithEmailLink(getFirebaseAuth(), url)) {
+      throw new Error("That link is invalid or has already been used.");
+    }
+    const email = emailOverride ?? window.localStorage.getItem(PENDING_SIGNUP_EMAIL_KEY);
+    if (!email) {
+      throw new Error("We need your email to finish this — please enter it below.");
+    }
+    const { user: newUser } = await signInWithEmailLink(getFirebaseAuth(), email, url);
+    window.localStorage.removeItem(PENDING_SIGNUP_EMAIL_KEY);
+    return newUser;
+  }
+
+  async function setInitialPassword(password: string) {
+    setError(null);
+    const current = getFirebaseAuth().currentUser;
+    if (!current) {
+      throw new Error("You need to be signed in to set a password.");
+    }
+    await updatePassword(current, password);
+  }
+
   async function forgotPassword(email: string) {
     setError(null);
     // handleCodeInApp: true — the emailed link lands the user directly
@@ -161,6 +242,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUp,
         signOut,
         resendVerificationEmail,
+        sendSignupLink,
+        completeSignupWithLink,
+        needsEmailForSignupLink,
+        setInitialPassword,
         forgotPassword,
         resetPassword,
       }}
