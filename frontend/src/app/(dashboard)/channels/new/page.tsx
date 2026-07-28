@@ -252,8 +252,7 @@ export default function NewChannelPage() {
               className="field-input"
               onChange={(e) => updateProviderKey("elevenlabs_api_key", e.target.value)}
             />
-          </Field>
-          <Field label="Pexels API key">
+          </Field>          <Field label="Pexels API key">
             <input
               type="password"
               className="field-input"
