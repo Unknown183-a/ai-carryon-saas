@@ -149,6 +149,9 @@ export default function ChannelDetailPage() {
             {lastRun.failure_reason && <Row label="Failure reason" value={lastRun.failure_reason} tone="danger" />}
             <Row label="Render status" value={lastRun.render_status ?? "not enqueued"} />
             {lastRun.render_task_id && <Row label="Render task" value={lastRun.render_task_id} mono />}
+            {lastRun.render_failure_reason && (
+              <Row label="Render failure reason" value={lastRun.render_failure_reason} tone="danger" />
+            )}
           </div>
         )}
       </div>

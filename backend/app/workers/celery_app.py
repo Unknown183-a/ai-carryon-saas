@@ -81,6 +81,7 @@ celery_app = Celery(
         "app.workers.thumbnail_worker",
         "app.workers.render_worker",
         "app.workers.upload_worker",
+        "app.workers.finalize_worker",
     ],
 )
 

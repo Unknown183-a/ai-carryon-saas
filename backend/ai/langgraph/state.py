@@ -79,7 +79,13 @@ class PipelineState(TypedDict, total=False):
     # `_route_after_review`'s "nothing to render for a script that never
     # passed review."
     render_task_id: Optional[str]
-    render_status: Optional[str]  # "enqueued" — chain progress itself lives in Celery's own result backend, not here
+    # "enqueued" here (LangGraph state) is a snapshot at the instant the
+    # graph run ends — the graph itself never sees anything past that.
+    # The run doc in Firestore keeps going: "completed" / "failed" get
+    # written later, out-of-band, by finalize_worker.py once the Celery
+    # chain actually finishes. Read the run doc, not this field, for the
+    # real terminal status.
+    render_status: Optional[str]
 
     # ── Terminal status ─────────────────────────────────────────────────
     status: str  # "running" | "reviewed" | "failed"

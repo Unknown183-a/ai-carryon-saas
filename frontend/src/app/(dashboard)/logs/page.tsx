@@ -142,6 +142,15 @@ function ChannelRunLog({ channelId }: { channelId: string }) {
                 {run.failure_reason && <Row label="Failure reason" value={run.failure_reason} tone="danger" />}
                 {run.render_status && <Row label="Render status" value={run.render_status} />}
                 {run.render_task_id && <Row label="Render task" value={run.render_task_id} mono />}
+                {run.render_failure_reason && (
+                  <Row label="Render failure reason" value={run.render_failure_reason} tone="danger" />
+                )}
+                {run.youtube_video_id && (
+                  <Row
+                    label="YouTube video"
+                    value={`https://youtube.com/watch?v=${run.youtube_video_id}`}
+                  />
+                )}
 
                 <div>
                   <p className="mb-1.5 text-xs uppercase tracking-wide text-slate">Node-by-node log</p>

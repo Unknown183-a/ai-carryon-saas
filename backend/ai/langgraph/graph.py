@@ -102,15 +102,21 @@ async def _enqueue_render(state: dict) -> dict:
     from celery import chain
 
     from app.workers.clips_worker import fetch_clips
+    from app.workers.finalize_worker import (
+        finalize_render_failure,
+        finalize_render_success,
+    )
     from app.workers.render_worker import render_video
     from app.workers.thumbnail_worker import generate_thumbnail
     from app.workers.upload_worker import upload_to_youtube
     from app.workers.voice_worker import generate_voice
 
+    channel_id = state["channel_id"]
+    run_id = state["run_id"]
     channel_config = state.get("channel_config") or {}
     render_payload = {
-        "channel_id": state["channel_id"],
-        "run_id": state["run_id"],
+        "channel_id": channel_id,
+        "run_id": run_id,
         "channel_config": channel_config,
         "script": state.get("script"),
         "voice_profile": channel_config.get("voice_profile"),
@@ -127,7 +133,15 @@ async def _enqueue_render(state: dict) -> dict:
         render_video.s(),
         upload_to_youtube.s(),
     )
-    async_result = render_chain.apply_async()
+    # Phase 12: close the "render_status: enqueued forever" gap — see
+    # finalize_worker.py's module docstring for why these are wired as
+    # link=/link_error= rather than plain chain steps, and why
+    # channel_id/run_id are bound here rather than relied on to arrive
+    # as call arguments.
+    async_result = render_chain.apply_async(
+        link=finalize_render_success.s(channel_id=channel_id, run_id=run_id),
+        link_error=finalize_render_failure.s(channel_id=channel_id, run_id=run_id),
+    )
 
     return {
         "render_task_id": async_result.id,

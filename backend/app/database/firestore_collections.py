@@ -120,6 +120,27 @@ def record_run(db, channel_id: str, run_data: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def update_run_status(db, run_id: str, updates: dict[str, Any]) -> None:
+    """Partial update of an existing run doc (Phase 12 — closes the loop
+    the module docstring of `graph.py`'s `_enqueue_render` left open:
+    `render_status` was written once as "enqueued" and never touched
+    again, because chain progress "lives in Celery's own result backend,
+    not here." This is the write side of actually bringing it back —
+    called from `app/workers/finalize_worker.py` once the render chain
+    reaches a real terminal state (success or failure), so the Logs
+    screen shows something truer than "enqueued" forever.
+
+    Uses `.set(..., merge=True)` rather than `.update()` so this never
+    raises if, for some reason, the run doc doesn't exist yet (a race
+    between `record_run`'s initial write and the chain finishing isn't
+    expected given the ordering in `generation_service.py`, but merge
+    is a strictly safer default here than `.update()`'s hard failure on
+    a missing doc).
+    """
+    payload = {**updates, "updated_at": _now_iso()}
+    db.collection(RUN_LOGS).document(run_id).set(payload, merge=True)
+
+
 def list_runs_for_channel(db, channel_id: str, limit: int = 20) -> list[dict[str, Any]]:
     """Most recent runs first. Firestore requires an index for
     `where(...).order_by(...)` on different fields, which this project's

@@ -81,7 +81,9 @@ export type RunSummary = {
   review_verdict?: "pass" | "fail" | string;
   failure_reason?: string | null;
   render_task_id?: string | null;
-  render_status?: string | null;
+  render_status?: string | null; // "enqueued" | "completed" | "failed" | string
+  render_failure_reason?: string | null;
+  youtube_video_id?: string | null;
   run_log: string[];
 };
 
