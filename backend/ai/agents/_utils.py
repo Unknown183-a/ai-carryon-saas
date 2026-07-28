@@ -5,12 +5,31 @@ underscore keeps it out of anyone's "which agent is this" mental list.
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 import time
 from typing import Any, Callable, TypeVar
 
 T = TypeVar("T")
+
+
+def normalize_topic(topic: str) -> str:
+    """Shared slugifier so trend_agent, research_agent (and anything else
+    doing topic comparisons) all normalize the same way. Previously this
+    was duplicated as a private `_normalize_topic` inside research_agent.py
+    only, which is why trend_agent had no way to dedupe topics itself.
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")
+    return slug[:80]
+
+
+def topic_similarity(a: str, b: str) -> float:
+    """0..1 fuzzy similarity between two topic strings. Used to catch
+    near-duplicates ("new AI model this week" vs "this week's new AI
+    model") that an exact slug match would miss.
+    """
+    return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
 def parse_json_response(raw: str) -> Any:

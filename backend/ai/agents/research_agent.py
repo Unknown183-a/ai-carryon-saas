@@ -33,7 +33,7 @@ import re
 from typing import Any
 
 from app.core.redis_client import channel_key, get_redis
-from ai.agents._utils import retry_with_backoff
+from ai.agents._utils import normalize_topic as _normalize_topic, retry_with_backoff, topic_similarity
 from ai.models.llm_client import call_llm, DEFAULT_MODELS
 from ai.prompts.prompt_library import research_summarizer_prompt
 from ai.rag.retriever import RetrievedChunk, hybrid_search, store_chunks
@@ -44,10 +44,47 @@ STALE_FALLBACK_SUFFIX = ":last_known_good"  # never expires — see get_research
 RETRIEVED_CHUNKS_PER_COLLECTION = 3
 RAG_COLLECTIONS = ["research", "knowledge"]
 
+# --- Topic-dedup guard (bugfix) ---------------------------------------
+# Previously RAG was only used to *ground* whatever topic had already
+# been picked (see _retrieve_context below) — nothing ever checked
+# whether that topic was basically a repeat of something already
+# published, so trend_agent could hand this node the same "new AI
+# model" angle three runs in a row and it would happily research it
+# again. This searches the channel's own `research` collection (the
+# same place _write_back stores every finished summary) and flags a
+# near-duplicate if something similar enough was covered recently.
+RAG_DEDUP_SIMILARITY_THRESHOLD = 0.6
+RAG_DEDUP_LOOKBACK_DAYS = 30
 
-def _normalize_topic(topic: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")
-    return slug[:80]
+
+def is_recently_covered(topic: str, channel_id: str) -> bool:
+    """True if this channel already published something close enough to
+    `topic` within RAG_DEDUP_LOOKBACK_DAYS. Never raises — a Qdrant
+    hiccup should not block topic selection, it just means this
+    particular safety check is skipped for this call.
+    """
+    try:
+        hits = hybrid_search(topic, collection="research", channel_id=channel_id, limit=5)
+    except Exception:
+        return False
+
+    import datetime
+
+    cutoff = datetime.date.today() - datetime.timedelta(days=RAG_DEDUP_LOOKBACK_DAYS)
+    for hit in hits:
+        past_topic = hit.metadata.get("topic")
+        past_date_str = hit.metadata.get("date")
+        if not past_topic:
+            continue
+        try:
+            past_date = datetime.date.fromisoformat(past_date_str) if past_date_str else None
+        except ValueError:
+            past_date = None
+        if past_date is not None and past_date < cutoff:
+            continue  # too old to count as "recently covered"
+        if topic_similarity(topic, past_topic) >= RAG_DEDUP_SIMILARITY_THRESHOLD:
+            return True
+    return False
 
 
 def _format_results_for_prompt(results: list[SearchResult]) -> str:
