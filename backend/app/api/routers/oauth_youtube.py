@@ -10,13 +10,21 @@ channel's own owner clicking "Connect YouTube" in the frontend — no
 operator, no local script, no manual token copy.
 
 /connect-youtube goes through the same `require_channel_access` chain
-(Ch.12e) as every other channel-scoped route, so only a workspace member
-can start this flow for a given channel. Its result carries no Firebase
-JWT forward to Google, though — the callback leg is a plain browser
-redirect Google controls, so `state` (see
-tenant_platform/security/provider_keys.sign_channel_state) is what
-proves the callback actually corresponds to a request that already
-passed that check, not the raw channel_id alone.
+(Ch.12e) as every other channel-scoped route — which needs a Firebase
+JWT in an `Authorization` header. A plain browser navigation (the
+frontend just setting `window.location.href` to this URL, or a plain
+`<a href>`) can't carry that header, so this route does NOT redirect
+the browser itself. It returns `{"auth_url": "..."}` as JSON, meant to
+be called via the frontend's normal authenticated `apiFetch` (header
+attached the usual way); the frontend then does the actual top-level
+navigation to `auth_url` itself, once it already has it. Google's
+consent screen sending the browser back to /oauth/youtube/callback is
+the leg that's a plain, unauthenticated redirect Google controls — that
+one carries no JWT by construction, which is exactly why `state` (see
+tenant_platform/security/provider_keys.sign_channel_state) exists: it's
+what proves that callback corresponds to a request that already passed
+`require_channel_access`, without needing a header on a leg that can't
+have one.
 """
 
 from __future__ import annotations
@@ -72,11 +80,17 @@ def _build_flow() -> Flow:
 @router.get("/channels/{channel_id}/connect-youtube")
 def connect_youtube(
     channel_doc: dict = Depends(require_channel_access),
-):
-    """Step 1: redirects the caller's browser to Google's consent screen.
+) -> dict[str, str]:
+    """Step 1: returns Google's consent-screen URL as JSON.
     `require_channel_access` has already confirmed the caller is a member
     of this channel's workspace before this handler runs at all — the
-    same Ch.12e guarantee every other channel-scoped route gets.
+    same Ch.12e guarantee every other channel-scoped route gets. Called
+    via the frontend's authenticated `apiFetch` (JWT header attached
+    normally); the frontend does `window.location.href = auth_url`
+    itself once it has this response — a raw redirect straight out of
+    this endpoint would ask the *browser* to navigate here directly,
+    which can't carry the Authorization header `require_channel_access`
+    needs.
     """
     flow = _build_flow()
     auth_url, _unused_flow_state = flow.authorization_url(
@@ -85,7 +99,7 @@ def connect_youtube(
         prompt="consent",  # forces a refresh_token even on a re-connect
         state=sign_channel_state(channel_doc["channel_id"]),
     )
-    return RedirectResponse(auth_url)
+    return {"auth_url": auth_url}
 
 
 @router.get("/oauth/youtube/callback")
@@ -103,8 +117,9 @@ def youtube_oauth_callback(
 
     if error:
         # User clicked "Cancel" on Google's consent screen — not a bug,
-        # just an incomplete connect attempt.
-        return RedirectResponse(f"{frontend_url}/channels?youtube_error={error}")
+        # just an incomplete connect attempt. Lands back on /providers,
+        # where "Connect" was clicked in the first place.
+        return RedirectResponse(f"{frontend_url}/providers?youtube_error={error}")
 
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code or state")
@@ -129,4 +144,4 @@ def youtube_oauth_callback(
     existing.update(updates)
     store_provider_keys(db, channel_id, existing)
 
-    return RedirectResponse(f"{frontend_url}/channels/{channel_id}?youtube_connected=1")
+    return RedirectResponse(f"{frontend_url}/providers?youtube_connected=1&channel_id={channel_id}")

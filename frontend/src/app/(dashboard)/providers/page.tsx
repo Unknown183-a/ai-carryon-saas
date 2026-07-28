@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Channel, ProviderKeyStatus } from "@/lib/types";
 
@@ -19,15 +20,28 @@ const PROVIDER_LABELS: Record<keyof ProviderKeyStatus, string> = {
 const PROVIDER_FIELDS = Object.keys(PROVIDER_LABELS) as (keyof ProviderKeyStatus)[];
 
 export default function ProvidersPage() {
+  const searchParams = useSearchParams();
   const [channels, setChannels] = useState<Channel[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Landed on straight from Google's consent screen — see
+  // backend/app/api/routers/oauth_youtube.py's callback, which redirects
+  // here with these params instead of back to a per-channel page, since
+  // this is where "Connect with Google" was clicked in the first place.
+  const connectedChannelId = searchParams.get("channel_id");
+  const youtubeConnected = searchParams.get("youtube_connected") === "1";
+  const youtubeError = searchParams.get("youtube_error");
 
   useEffect(() => {
     apiFetch<Channel[]>("/channels")
       .then(setChannels)
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load channels."));
   }, []);
+
+  useEffect(() => {
+    if (connectedChannelId) setExpanded(connectedChannelId);
+  }, [connectedChannelId]);
 
   return (
     <div className="max-w-3xl">
@@ -38,6 +52,18 @@ export default function ProvidersPage() {
           no other channel, even in this workspace, can read it.
         </p>
       </header>
+
+      {youtubeConnected && (
+        <p className="mb-6 rounded-md border border-signal/30 bg-signal/10 px-4 py-3 text-sm text-signal">
+          YouTube connected successfully for this channel.
+        </p>
+      )}
+
+      {youtubeError && (
+        <p className="mb-6 rounded-md border border-danger/30 bg-dangerDim px-4 py-3 text-sm text-danger">
+          YouTube connection didn&apos;t complete ({youtubeError}). Try &quot;Connect with Google&quot; again.
+        </p>
+      )}
 
       {error && (
         <p className="mb-6 rounded-md border border-danger/30 bg-dangerDim px-4 py-3 text-sm text-danger">
@@ -121,19 +147,86 @@ function ChannelProviderRow({
           {status === null && !loadError && <p className="text-sm text-slate">Loading key status…</p>}
           {status !== null && (
             <div className="space-y-3">
-              {PROVIDER_FIELDS.map((field) => (
-                <ProviderKeyField
-                  key={field}
-                  channelId={channel.channel_id}
-                  field={field}
-                  connected={status[field]}
-                  onRotated={(newStatus) => setStatus(newStatus)}
-                />
-              ))}
+              {PROVIDER_FIELDS.map((field) =>
+                field === "youtube_oauth_token" ? (
+                  <YoutubeConnectField
+                    key={field}
+                    channelId={channel.channel_id}
+                    connected={status[field]}
+                  />
+                ) : (
+                  <ProviderKeyField
+                    key={field}
+                    channelId={channel.channel_id}
+                    field={field}
+                    connected={status[field]}
+                    onRotated={(newStatus) => setStatus(newStatus)}
+                  />
+                )
+              )}
             </div>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function YoutubeConnectField({
+  channelId,
+  connected,
+}: {
+  channelId: string;
+  connected: boolean;
+}) {
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+
+  async function handleConnect() {
+    setConnecting(true);
+    setConnectError(null);
+    try {
+      // Authenticated fetch (JWT header attached the normal way by
+      // apiFetch) — this is what require_channel_access on the backend
+      // actually needs. The response is just a URL, not a redirect: the
+      // real browser navigation to Google happens next, done by us, not
+      // by the fetch call, since a fetch can't hand control of the
+      // address bar to Google's consent screen.
+      const { auth_url } = await apiFetch<{ auth_url: string }>(
+        `/channels/${channelId}/connect-youtube`
+      );
+      window.location.href = auth_url;
+    } catch (err) {
+      setConnectError(
+        err instanceof ApiError && err.status === 404
+          ? "Backend doesn't have this route deployed yet."
+          : err instanceof Error
+            ? err.message
+            : "Could not start the YouTube connect flow."
+      );
+      setConnecting(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className={`h-2 w-2 shrink-0 rounded-full ${connected ? "bg-signal" : "bg-line"}`}
+        title={connected ? "Connected" : "Not set"}
+      />
+      <span className="w-36 shrink-0 text-sm text-paper">{PROVIDER_LABELS.youtube_oauth_token}</span>
+      <p className="field-input flex-1 truncate text-slate">
+        {connected ? "Connected — reconnect to switch YouTube accounts" : "Not connected"}
+      </p>
+      <button
+        type="button"
+        onClick={handleConnect}
+        disabled={connecting}
+        className="btn-primary shrink-0 px-3 py-1.5 text-xs disabled:opacity-50"
+      >
+        {connecting ? "Redirecting…" : connected ? "Reconnect with Google" : "Connect with Google"}
+      </button>
+      {connectError && <span className="text-xs text-danger">{connectError}</span>}
     </div>
   );
 }
