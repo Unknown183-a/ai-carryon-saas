@@ -163,5 +163,26 @@ async def generate_video(
     `POST /internal/scheduler/run-due-channels` (Ch.16) so a
     Scheduler-triggered run and a human-triggered run can never drift
     into different behavior.
+
+    Fails fast with 400 if this channel hasn't connected its own YouTube
+    account yet (unless it's the operator's own HARDCODED_CHANNEL_ID
+    dev/test channel) — otherwise the full Trend -> ... -> Render chain
+    would run to completion only to have `upload_worker.py` reject it at
+    the very last step (`YouTubeNotConnectedError`), wasting a render's
+    worth of time/API cost on a run that could never have succeeded.
     """
+    from ai.langgraph.hardcoded_channel import HARDCODED_CHANNEL_ID
+
+    if channel_id != HARDCODED_CHANNEL_ID:
+        encrypted = get_provider_keys(db, channel_id)
+        if not encrypted.get("youtube_oauth_token"):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "This channel hasn't connected a YouTube account yet. "
+                    "Go to Providers and click 'Connect with Google' for this "
+                    "channel before generating a video."
+                ),
+            )
+
     return await run_generation(channel_id, channel_doc, user["uid"], db=db)

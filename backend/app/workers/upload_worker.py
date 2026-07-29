@@ -28,23 +28,36 @@ import logging
 from typing import Any
 
 from app.workers.celery_app import celery_app
+from ai.langgraph.hardcoded_channel import HARDCODED_CHANNEL_ID
 from integrations.youtube.client import upload_video
 
 logger = logging.getLogger(__name__)
 
 
-def _channel_youtube_token(channel_id: str) -> str | None:
-    """Best-effort lookup of a channel's own stored YouTube OAuth token,
-    decrypted. Returns None (falls back to the platform default in
-    integrations/youtube/client.py) if the channel never supplied one,
-    Firestore isn't reachable, or the channel doesn't exist for any
-    reason — an upload should still attempt the platform default rather
-    than hard-fail on a lookup problem unrelated to the video itself.
+class YouTubeNotConnectedError(RuntimeError):
+    """Raised when a real (non-platform-owner) channel has no YouTube
+    OAuth token stored yet.
 
-    Every fallback path is logged at WARNING now (previously silent) —
-    "falls back to platform default" was indistinguishable from "the
-    per-channel lookup is silently broken," which made exactly this bug
-    invisible from the outside.
+    Previously this case silently fell back to YOUTUBE_TOKEN_B64 — the
+    platform operator's own token — which meant a user's video could
+    end up uploaded to the *operator's* YouTube account with no error
+    anywhere. That fallback is now reserved for HARDCODED_CHANNEL_ID
+    only (the operator's own dev/test channel, per ai/langgraph/
+    hardcoded_channel.py); every real user channel must have its own
+    stored token or the upload refuses to run at all.
+    """
+
+
+def _channel_youtube_token(channel_id: str) -> str | None:
+    """Looks up a channel's own stored YouTube OAuth token, decrypted.
+
+    Only HARDCODED_CHANNEL_ID (the operator's own dev/test channel) is
+    allowed to fall back to the platform-default YOUTUBE_TOKEN_B64 when
+    it has no token of its own. Every other channel — i.e. every real
+    user — must have connected its own YouTube account via
+    oauth_youtube.py's self-serve flow; if it hasn't,
+    YouTubeNotConnectedError is raised so the upload is refused loudly
+    instead of silently landing on someone else's channel.
     """
     try:
         from app.api.dependencies import get_firestore
@@ -54,20 +67,36 @@ def _channel_youtube_token(channel_id: str) -> str | None:
         db = get_firestore()
         encrypted = get_provider_keys(db, channel_id)
         if not encrypted.get("youtube_oauth_token"):
+            if channel_id == HARDCODED_CHANNEL_ID:
+                logger.warning(
+                    "No youtube_oauth_token stored for the operator's own "
+                    "channel_id=%s — uploading with the platform-default "
+                    "YOUTUBE_TOKEN_B64 instead (expected for this channel only).",
+                    channel_id,
+                )
+                return None
+            raise YouTubeNotConnectedError(
+                f"channel_id={channel_id} has not connected a YouTube account "
+                "yet. Ask the channel owner to click 'Connect with Google' on "
+                "the Providers page before generating a video for this channel."
+            )
+        return decrypt_provider_keys(encrypted)["youtube_oauth_token"]
+    except YouTubeNotConnectedError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — Firestore/decrypt-layer failure, not "not connected"
+        if channel_id == HARDCODED_CHANNEL_ID:
             logger.warning(
-                "No youtube_oauth_token stored for channel_id=%s — "
-                "uploading with the platform-default YOUTUBE_TOKEN_B64 instead.",
-                channel_id,
+                "Per-channel YouTube token lookup failed for the operator's own "
+                "channel_id=%s (%s: %s) — uploading with the platform-default "
+                "YOUTUBE_TOKEN_B64 instead.",
+                channel_id, type(exc).__name__, exc,
             )
             return None
-        return decrypt_provider_keys(encrypted)["youtube_oauth_token"]
-    except Exception as exc:  # noqa: BLE001 — see docstring: fall back, don't hard-fail
-        logger.warning(
-            "Per-channel YouTube token lookup failed for channel_id=%s (%s: %s) — "
-            "uploading with the platform-default YOUTUBE_TOKEN_B64 instead.",
-            channel_id, type(exc).__name__, exc,
-        )
-        return None
+        raise YouTubeNotConnectedError(
+            f"Could not look up channel_id={channel_id}'s YouTube token "
+            f"({type(exc).__name__}: {exc}). Refusing to fall back to the "
+            "platform-default account for a real user channel."
+        ) from exc
 
 
 @celery_app.task(
