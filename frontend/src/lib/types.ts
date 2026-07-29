@@ -102,4 +102,5 @@ export type GenerateRunResult = {
   failure_reason?: string | null;
   render_task_id?: string | null;
   render_status?: string | null;
+  render_failure_reason?: string | null;
 };
