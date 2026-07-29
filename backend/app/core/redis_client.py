@@ -96,6 +96,16 @@ class RedisClient:
         """
         return int(self._command("INCR", key))
 
+    def lrange(self, key: str, start: int, end: int) -> list:
+        result = self._command("LRANGE", key, start, end)
+        return result or []
+
+    def lpush(self, key: str, value: str) -> int:
+        return self._command("LPUSH", key, value)
+
+    def ltrim(self, key: str, start: int, end: int) -> None:
+        self._command("LTRIM", key, start, end)
+
     def expire(self, key: str, seconds: int) -> None:
         """Sets (or resets) a TTL on an existing key."""
         self._command("EXPIRE", key, seconds)

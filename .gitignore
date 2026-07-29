@@ -22,3 +22,6 @@ build/
 *.log
 backend/configs/*.json
 backend/client_secret.json
+client_secret.json
+token.json
+get_token.py
