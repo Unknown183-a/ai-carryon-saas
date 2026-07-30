@@ -1,5 +1,8 @@
 """
-The nine Qdrant collections from Ch.10 of the SAD, in one place.
+The nine Qdrant collections from Ch.10 of the SAD, plus `clip_history`
+(added for the Clip Agent, not in the original Ch.10 table — same shape
+and isolation rules as the other nine, so it didn't need a bespoke
+setup path), all in one place.
 
 Every collection shares the same vector size (EMBEDDING_DIM, matching
 `output_dimensionality` in integrations/gemini/client.py's `embed()`) and
@@ -58,6 +61,10 @@ COLLECTIONS: dict[str, dict[str, str]] = {
     "lessons_learned": {
         "stores": "Learning Agent's distilled patterns",
         "example_metadata": "channel_id, pattern, confidence",
+    },
+    "clip_history": {
+        "stores": "Pexels background clips already used, keyed by the script segment/topic that picked them",
+        "example_metadata": "channel_id, video_id, clip_url, topic",
     },
 }
 
