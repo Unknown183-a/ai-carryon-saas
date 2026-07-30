@@ -35,7 +35,7 @@ from typing import Any
 from app.core.redis_client import channel_key, get_redis
 from ai.agents._utils import normalize_topic as _normalize_topic, retry_with_backoff, topic_similarity
 from ai.models.llm_client import call_llm, DEFAULT_MODELS
-from ai.prompts.prompt_library import research_summarizer_prompt
+from ai.prompts.prompt_library import research_summarizer_prompt, story_premise_prompt
 from ai.rag.retriever import RetrievedChunk, hybrid_search, store_chunks
 from ai.tools.web_search import web_search, SearchResult
 
@@ -129,14 +129,21 @@ def _retrieve_context(topic: str, channel_id: str) -> tuple[str, list[RetrievedC
 
 
 async def get_research_summary(topic: str, channel_config: dict[str, Any]) -> tuple[str, list[str]]:
-    """Returns (summary, source_links). Cache-first, then web search +
-    RAG retrieval + LLM, with a stale-cache fallback if the live path
-    fails entirely.
+    """Returns (summary, source_links). Cache-first, then either the
+    factual path (web search + RAG retrieval + grounded-summary LLM
+    call) or, for content_type="narrative", a RAG-continuity-only path
+    that generates an original story premise instead — web search has
+    nothing useful to ground a fictional short in, and the factual
+    prompt's "do not add facts from your own memory" rule is exactly
+    backwards for a task that's supposed to invent a plot. Both paths
+    share the same cache/fallback/write-back plumbing below; only the
+    "how do we produce a fresh summary" step differs.
     """
     channel_id = channel_config["channel_id"]
     topic_slug = _normalize_topic(topic)
     cache_key = channel_key(channel_id, f"research:{topic_slug}")
     fallback_key = cache_key + STALE_FALLBACK_SUFFIX
+    is_narrative = channel_config.get("content_type") == "narrative"
 
     redis = get_redis()
     cached = redis.get(cache_key)
@@ -146,19 +153,39 @@ async def get_research_summary(topic: str, channel_config: dict[str, Any]) -> tu
         return parsed["summary"], parsed["sources"]
 
     try:
-        results = retry_with_backoff(lambda: web_search(topic, num_results=6), attempts=3)
-        retrieved_context, _chunks = _retrieve_context(topic, channel_id)
+        if is_narrative:
+            # No web search: an external source has nothing to offer a
+            # made-up premise. RAG retrieval still runs — here it means
+            # this channel's own past premises/characters/twists, used
+            # for continuity, not fact-grounding (see _retrieve_context
+            # and story_premise_prompt).
+            retrieved_context, _chunks = _retrieve_context(topic, channel_id)
+            results: list[SearchResult] = []
 
-        def _summarize() -> str:
-            return call_llm(
-                model=DEFAULT_MODELS["research"],
-                system_prompt=research_summarizer_prompt(channel_config),
-                user_prompt=(
-                    f"Topic: {topic}\n\n"
-                    f"Search results:\n{_format_results_for_prompt(results)}\n\n"
-                    f"Retrieved context:\n{retrieved_context}"
-                ),
-            )
+            def _summarize() -> str:
+                return call_llm(
+                    model=DEFAULT_MODELS["research"],
+                    system_prompt=story_premise_prompt(channel_config),
+                    user_prompt=(
+                        f"Genre/angle seed: {topic}\n\n"
+                        f"Retrieved context (this channel's own past premises/"
+                        f"characters/twists, for continuity only):\n{retrieved_context}"
+                    ),
+                )
+        else:
+            results = retry_with_backoff(lambda: web_search(topic, num_results=6), attempts=3)
+            retrieved_context, _chunks = _retrieve_context(topic, channel_id)
+
+            def _summarize() -> str:
+                return call_llm(
+                    model=DEFAULT_MODELS["research"],
+                    system_prompt=research_summarizer_prompt(channel_config),
+                    user_prompt=(
+                        f"Topic: {topic}\n\n"
+                        f"Search results:\n{_format_results_for_prompt(results)}\n\n"
+                        f"Retrieved context:\n{retrieved_context}"
+                    ),
+                )
 
         summary = retry_with_backoff(_summarize, attempts=3)
         sources = [r.link for r in results if r.link]

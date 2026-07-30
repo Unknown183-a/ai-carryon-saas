@@ -15,6 +15,37 @@ from __future__ import annotations
 
 from typing import Any
 
+# The two content_type values every agent branches on. "factual" is the
+# only mode this pipeline supported before this change (trend-chasing,
+# web-search-grounded, claim-traceable) — it stays the default so every
+# existing channel's behavior is unchanged. "narrative" is for channels
+# like fiction/story shorts where there is no real-world fact to chase
+# or ground a script in; adding a third value later (e.g. "quiz") only
+# means adding one more branch here and in trend_agent, not a
+# channel-specific code path.
+CONTENT_TYPE_FACTUAL = "factual"
+CONTENT_TYPE_NARRATIVE = "narrative"
+
+
+def _content_type(channel_config: dict[str, Any]) -> str:
+    return channel_config.get("content_type", CONTENT_TYPE_FACTUAL)
+
+
+def _with_override(base_prompt: str, channel_config: dict[str, Any], agent_name: str) -> str:
+    """Every prompt builder's last step. `prompt_overrides` is a plain
+    dict of {agent_name: extra_instructions} living on the channel's own
+    Firestore document (see tenant_platform/channels/brain.py) — this is
+    the generalized "learn from per-channel input" hook: a channel can
+    nudge any single agent (tighten the twist-ending requirement, ban a
+    phrase, add a recurring character's name) purely through its own
+    config, with no code change and no per-channel branch anywhere in
+    this file. Silently a no-op for channels that don't set one.
+    """
+    override = channel_config.get("prompt_overrides", {}).get(agent_name)
+    if not override:
+        return base_prompt
+    return f"{base_prompt}\n\nChannel-specific instructions for this channel ONLY:\n{override}"
+
 
 def _channel_context(channel_config: dict[str, Any]) -> str:
     return (
@@ -28,7 +59,15 @@ def _channel_context(channel_config: dict[str, Any]) -> str:
 
 
 def research_summarizer_prompt(channel_config: dict[str, Any]) -> str:
-    return (
+    """Factual-mode only. For content_type="narrative", research_agent.py
+    calls story_premise_prompt() instead — see that function and this
+    module's CONTENT_TYPE_* constants for why these are two separate
+    prompts rather than one prompt trying to cover both: "ground only in
+    what's in front of you, add nothing from memory" and "invent a plot,
+    that's the whole job" are opposite instructions, not a style
+    variation of the same instruction.
+    """
+    base = (
         "You are the Research Agent for a YouTube channel's video pipeline.\n"
         f"{_channel_context(channel_config)}\n\n"
         "You will be given a topic, a set of web search results (title, "
@@ -44,10 +83,38 @@ def research_summarizer_prompt(channel_config: dict[str, Any]) -> str:
         "it, the same way you'd cite a web result. End with a 'Sources:' "
         "line listing the web links you actually drew from."
     )
+    return _with_override(base, channel_config, "research")
+
+
+def story_premise_prompt(channel_config: dict[str, Any]) -> str:
+    """narrative-mode counterpart to research_summarizer_prompt. There's
+    nothing to "research" for a fictional short — the input is a genre/
+    angle (from trend_agent's angle rotation, repurposed as a story seed
+    rather than a news topic) plus this channel's own Retrieved context,
+    which here means past premises/characters/twists from this channel's
+    RAG history, used for continuity (don't reuse a twist, don't
+    contradict a recurring character) rather than fact-grounding.
+    """
+    base = (
+        "You are the Story Premise Agent for a YouTube Shorts fiction "
+        f"channel.\n{_channel_context(channel_config)}\n\n"
+        "You will be given a genre/angle seed and, when this channel has "
+        "any, a 'Retrieved context' section of this channel's own past "
+        "premises, characters, and twist endings (pulled from its RAG "
+        "history) — use that ONLY to keep continuity: don't reuse a twist "
+        "or contradict a recurring character or established detail from "
+        "it. Otherwise, invent freely — an original one-paragraph story "
+        "premise for a 30-45 second short: who it's about, the central "
+        "tension, and the twist or reveal the story builds to. This is "
+        "fiction; there is no external source to be faithful to. Do not "
+        "pad with meta-commentary about the channel or the format — just "
+        "the premise itself, ready for the Script Agent to dramatize."
+    )
+    return _with_override(base, channel_config, "research")
 
 
 def planner_prompt(channel_config: dict[str, Any]) -> str:
-    return (
+    base = (
         "You are the Planner Agent — the one node in this pipeline that "
         "makes decisions rather than generates content. Every downstream "
         "agent will read your output as instructions and will NOT "
@@ -65,24 +132,45 @@ def planner_prompt(channel_config: dict[str, Any]) -> str:
         '}\n'
         "No prose outside the JSON object."
     )
+    return _with_override(base, channel_config, "planner")
 
 
 def script_prompt(channel_config: dict[str, Any]) -> str:
-    return (
-        "You are the Script Agent. Write a spoken-word video script for a "
-        f"{channel_config['format']} video.\n{_channel_context(channel_config)}\n\n"
-        "You'll be given the research summary and the Planner's JSON "
-        "instructions (video_length_sec, voice_profile, audience). Write "
-        "ONLY the spoken script text — no scene directions, no timestamps, "
-        "no markdown. Every factual claim must be traceable to the research "
-        "summary you were given; do not invent statistics, quotes, or "
-        "events. Match the target length: roughly 2.5 spoken words per "
-        "second, so a 58-second video is about 145 words."
+    length_rule = (
+        "Match the target length: roughly 2.5 spoken words per second, "
+        "so a 58-second video is about 145 words."
     )
+    if _content_type(channel_config) == CONTENT_TYPE_NARRATIVE:
+        base = (
+            "You are the Script Agent for a fiction/story channel. Write "
+            f"a spoken-word short-story script for a {channel_config['format']} "
+            f"video.\n{_channel_context(channel_config)}\n\n"
+            "You'll be given a story premise (from the Story Premise Agent, "
+            "not a factual research summary) and the Planner's JSON "
+            "instructions (video_length_sec, voice_profile, audience). "
+            "Dramatize that premise into a complete short story with a "
+            "clear beginning, rising tension, and the twist/reveal the "
+            "premise points to — invented characters, dialogue, and plot "
+            "are expected and required, this is fiction, not reportage. "
+            "Write ONLY the spoken narration/dialogue text — no scene "
+            "directions, no timestamps, no markdown. " + length_rule
+        )
+    else:
+        base = (
+            "You are the Script Agent. Write a spoken-word video script for a "
+            f"{channel_config['format']} video.\n{_channel_context(channel_config)}\n\n"
+            "You'll be given the research summary and the Planner's JSON "
+            "instructions (video_length_sec, voice_profile, audience). Write "
+            "ONLY the spoken script text — no scene directions, no timestamps, "
+            "no markdown. Every factual claim must be traceable to the research "
+            "summary you were given; do not invent statistics, quotes, or "
+            "events. " + length_rule
+        )
+    return _with_override(base, channel_config, "script")
 
 
 def seo_prompt(channel_config: dict[str, Any]) -> str:
-    return (
+    base = (
         "You are the SEO Agent. Given the research summary and the "
         f"Planner's JSON instructions, {_channel_context(channel_config)}\n\n"
         "output ONLY a JSON object with exactly these keys:\n"
@@ -91,10 +179,11 @@ def seo_prompt(channel_config: dict[str, Any]) -> str:
         "be 5-10 search terms this video should rank for. No prose outside "
         "the JSON object."
     )
+    return _with_override(base, channel_config, "seo")
 
 
 def thumbnail_prompt(channel_config: dict[str, Any]) -> str:
-    return (
+    base = (
         "You are the Thumbnail Agent. Given the research summary and the "
         f"Planner's JSON instructions, {_channel_context(channel_config)}\n\n"
         "output ONLY a JSON object with exactly these keys:\n"
@@ -103,35 +192,39 @@ def thumbnail_prompt(channel_config: dict[str, Any]) -> str:
         '"style": "<string, matches the Planner\'s thumbnail_style>"}\n'
         "No prose outside the JSON object."
     )
+    return _with_override(base, channel_config, "thumbnail")
 
 
 def hook_prompt(channel_config: dict[str, Any]) -> str:
-    return (
+    base = (
         "You are the Hook Agent. Given the research summary and the "
         f"Planner's JSON instructions, {_channel_context(channel_config)}\n\n"
         "write ONLY the first 1-2 spoken sentences of the video — the hook "
         "that has to earn the viewer's attention in the first 3 seconds. No "
         "markdown, no scene directions, just the spoken hook line(s)."
     )
+    return _with_override(base, channel_config, "hook")
 
 
 def tags_prompt(channel_config: dict[str, Any]) -> str:
-    return (
+    base = (
         "You are the Tags Agent. Given the research summary and the "
         f"Planner's JSON instructions, {_channel_context(channel_config)}\n\n"
         "output ONLY a JSON array of 8-15 short YouTube tag strings "
         "(lowercase, no leading '#'). No prose outside the JSON array."
     )
+    return _with_override(base, channel_config, "tags")
 
 
 def description_prompt(channel_config: dict[str, Any]) -> str:
-    return (
+    base = (
         "You are the Description Agent. Given the research summary and the "
         f"Planner's JSON instructions, {_channel_context(channel_config)}\n\n"
         "write ONLY the YouTube video description text: 2-4 sentences "
         "summarizing the video, grounded in the research summary, followed "
         "by a blank line and 3-5 relevant hashtags. No markdown headers."
     )
+    return _with_override(base, channel_config, "description")
 
 
 def grammar_check_prompt(channel_config: dict[str, Any]) -> str:
@@ -160,7 +253,30 @@ def grammar_check_prompt(channel_config: dict[str, Any]) -> str:
     )
 
 
-def fact_check_prompt() -> str:
+def fact_check_prompt(channel_config: dict[str, Any]) -> str:
+    """Takes channel_config now (previously didn't) so this gate can tell
+    a factual channel from a narrative one. Before this change, every
+    script — including an intentionally invented short story — was
+    checked against "does every claim trace back to the research
+    summary", which a fiction script fails by definition: this was the
+    review-layer half of why a story channel's runs kept getting bounced
+    back to the Script Agent and eventually marked failed after
+    MAX_RETRIES_PER_AGENT, with no story ever actually produced.
+    """
+    if _content_type(channel_config) == CONTENT_TYPE_NARRATIVE:
+        return (
+            "You are the Fact Check — the second gate in the Review layer, "
+            "running here in narrative mode. You will be shown this "
+            "channel's story premise (not a factual ground truth — a "
+            "creative brief) and a video script. This is fiction: invented "
+            "characters, dialogue, and events are expected and are NOT "
+            "errors. Only flag the script if it actually contradicts or "
+            "abandons the premise it was given (e.g. the twist the premise "
+            "set up never happens, a stated detail is contradicted "
+            "outright) — not for inventing anything the premise didn't "
+            "specify. Output ONLY a JSON object: "
+            '{"pass": <bool>, "issues": ["<string>", ...]}.'
+        )
     return (
         "You are the Fact Check — the second gate in the Review layer. "
         "You will be shown a research summary (the ground truth) and a "

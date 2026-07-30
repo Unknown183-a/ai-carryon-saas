@@ -69,7 +69,7 @@ class Candidate(NamedTuple):
 # Order here is also the rotation order used when synthesizing a fresh
 # topic because every live/fallback candidate got filtered out as a
 # recent duplicate.
-FALLBACK_TOPIC_ANGLES: dict[str, list[str]] = {
+FACTUAL_TOPIC_ANGLES: dict[str, list[str]] = {
     "new_release": [
         "new AI model release this week",
         "newest {category} product launch this week",
@@ -99,7 +99,75 @@ FALLBACK_TOPIC_ANGLES: dict[str, list[str]] = {
         "where {category} is heading in the next few years",
     ],
 }
-ANGLE_ORDER = list(FALLBACK_TOPIC_ANGLES.keys())
+
+# --- Narrative-mode angle pool -------------------------------------
+# The factual pool above assumes there's a real-world thing to chase —
+# a release, a device, an industry. A fiction/story channel has none of
+# that; "newest Hindi Interactive Stories, Mystery, Horror product
+# launch this week" (a real fallback candidate the old single pool
+# would have produced for that category) is nonsense as a story seed.
+# These buckets are genre/trope angles instead — the same rotation,
+# recency-dedup, and dead-letter-synthesis machinery below applies
+# unchanged, it's just fed a pool that actually fits fiction.
+NARRATIVE_TOPIC_ANGLES: dict[str, list[str]] = {
+    "mystery_twist": [
+        "a {category} short with a mystery that flips in the final line",
+        "someone discovers a hidden truth about a person they trust, {category} style",
+    ],
+    "horror_supernatural": [
+        "a {category} short built around a supernatural warning ignored too late",
+        "an ordinary night that turns eerie, {category} style",
+    ],
+    "moral_dilemma": [
+        "a {category} short where the protagonist must choose between two people they love",
+        "a small lie in a {category} story that spirals out of control",
+    ],
+    "revenge_justice": [
+        "a {category} short about quiet revenge finally being served",
+        "someone wronged years ago gets one chance to set it right, {category} style",
+    ],
+    "family_secret": [
+        "a {category} short where a family secret surfaces at a reunion",
+        "a letter or object reveals a parent's hidden past, {category} style",
+    ],
+    "love_betrayal": [
+        "a {category} short about a betrayal disguised as an act of love",
+        "two people separated by a misunderstanding neither will admit to, {category} style",
+    ],
+    "crime_investigation": [
+        "a {category} short where an amateur notices what the investigators missed",
+        "a small clue unravels a bigger crime, {category} style",
+    ],
+}
+
+# Which pool + rotation order a channel uses. Keyed by content_type so
+# adding a third content_type later means adding one more entry here,
+# not a channel-specific branch — and a channel can still supply its
+# own pool via channel_config["topic_angles"] (same {angle: [templates]}
+# shape) without any code change at all, for a genre this pool doesn't
+# cover yet.
+CONTENT_TYPE_ANGLE_POOLS: dict[str, dict[str, list[str]]] = {
+    "factual": FACTUAL_TOPIC_ANGLES,
+    "narrative": NARRATIVE_TOPIC_ANGLES,
+}
+DEFAULT_ANGLE_POOL_CONTENT_TYPE = "factual"
+
+# Back-compat alias — some callers/tests may still import the old name.
+FALLBACK_TOPIC_ANGLES = FACTUAL_TOPIC_ANGLES
+
+
+def _angle_pool(channel_config: dict[str, Any]) -> dict[str, list[str]]:
+    """Resolves the angle pool a channel rotates through: an explicit
+    per-channel override (channel_config["topic_angles"], plain
+    Firestore data) wins if present, otherwise the pool for this
+    channel's content_type, defaulting to the factual pool so every
+    channel that predates content_type keeps its old behavior exactly.
+    """
+    override = channel_config.get("topic_angles")
+    if override:
+        return override
+    content_type = channel_config.get("content_type", DEFAULT_ANGLE_POOL_CONTENT_TYPE)
+    return CONTENT_TYPE_ANGLE_POOLS.get(content_type, FACTUAL_TOPIC_ANGLES)
 
 
 def _category_seed(channel_config: dict[str, Any]) -> str:
@@ -137,10 +205,13 @@ def _fetch_trending_topics_sync(channel_config: dict[str, Any]) -> list[str]:
 def _fallback_candidates(channel_config: dict[str, Any]) -> list[Candidate]:
     """One candidate per angle bucket (formatted with this channel's
     category) instead of a flat list that always led with the same item.
+    Pool is resolved per-channel (see _angle_pool) so a narrative channel
+    gets genre/trope angles instead of tech-release angles, and a
+    channel with its own `topic_angles` override gets exactly that.
     """
     category = _category_seed(channel_config)
     out: list[Candidate] = []
-    for angle, templates in FALLBACK_TOPIC_ANGLES.items():
+    for angle, templates in _angle_pool(channel_config).items():
         for template in templates:
             out.append(Candidate(topic=template.format(category=category), angle=angle))
     return out
@@ -151,6 +222,15 @@ async def get_trending_topics(channel_config: dict[str, Any]) -> list[str]:
     other callers/tests may depend on that shape) but the fallback pool
     is now the diverse, angle-tagged one instead of a five-item list
     that always started with "new AI model".
+
+    Narrative channels skip the pytrends call entirely: Google Trends
+    has no meaningful signal for "what's trending in Hindi horror
+    shorts" the way it does for a tech/news category, so seeding it with
+    a fiction category just burns a call to come back empty (or with
+    unrelated web-search-style queries) before falling through to the
+    same fallback path anyway. Going straight to angle synthesis is
+    faster and no less diverse, since that's genre rotation, not a
+    "what's trending" answer to begin with.
     """
     channel_id = channel_config["channel_id"]
     cache_key = channel_key(channel_id, "trend")
@@ -160,12 +240,15 @@ async def get_trending_topics(channel_config: dict[str, Any]) -> list[str]:
     if cached:
         return json.loads(cached)
 
-    try:
-        topics = await asyncio.to_thread(_fetch_trending_topics_sync, channel_config)
-        if not topics:
-            topics = [c.topic for c in _fallback_candidates(channel_config)]
-    except Exception:
+    if channel_config.get("content_type") == "narrative":
         topics = [c.topic for c in _fallback_candidates(channel_config)]
+    else:
+        try:
+            topics = await asyncio.to_thread(_fetch_trending_topics_sync, channel_config)
+            if not topics:
+                topics = [c.topic for c in _fallback_candidates(channel_config)]
+        except Exception:
+            topics = [c.topic for c in _fallback_candidates(channel_config)]
 
     redis.set(cache_key, json.dumps(topics), ex=TREND_CACHE_TTL_SECONDS)
     return topics
@@ -227,13 +310,16 @@ def _is_recent_duplicate(topic: str, recent_topics: list[str]) -> bool:
     return False
 
 
-def _next_angle(redis: Any, channel_id: str) -> str:
-    """Rotates through ANGLE_ORDER per channel so repeated fallback
-    synthesis doesn't just loop back to 'new_release' every time either.
+def _next_angle(redis: Any, channel_id: str, angle_order: list[str]) -> str:
+    """Rotates through this channel's own angle order so repeated
+    fallback synthesis doesn't just loop back to the first angle every
+    time either. `angle_order` comes from the caller's resolved pool
+    (factual/narrative/override) — kept as a param rather than a module
+    global now that more than one pool exists.
     """
     idx = redis.incr(_angle_cursor_key(channel_id))
     redis.expire(_angle_cursor_key(channel_id), ANGLE_CURSOR_TTL_SECONDS)
-    return ANGLE_ORDER[int(idx) % len(ANGLE_ORDER)]
+    return angle_order[int(idx) % len(angle_order)]
 
 
 def select_diverse_topic(
@@ -265,9 +351,11 @@ def select_diverse_topic(
     # angle every run). Synthesize a genuinely fresh topic from the next
     # angle bucket in rotation instead of giving up and reusing one.
     category = _category_seed(channel_config)
-    for _ in range(len(ANGLE_ORDER)):
-        angle = _next_angle(redis, channel_id)
-        templates = FALLBACK_TOPIC_ANGLES[angle]
+    pool = _angle_pool(channel_config)
+    angle_order = list(pool.keys())
+    for _ in range(len(angle_order)):
+        angle = _next_angle(redis, channel_id, angle_order)
+        templates = pool[angle]
         for template in templates:
             candidate_topic = template.format(category=category)
             if not _is_recent_duplicate(candidate_topic, recent_topics) and not is_recently_covered(
@@ -278,7 +366,8 @@ def select_diverse_topic(
     # Truly exhausted (e.g. brand-new channel with a tiny category and a
     # long history) — fall back to the single least-recently-used
     # candidate rather than raising, so the pipeline still produces a video.
-    return candidates[0] if candidates else FALLBACK_TOPIC_ANGLES["new_release"][0].format(category=category)
+    first_angle = angle_order[0]
+    return candidates[0] if candidates else pool[first_angle][0].format(category=category)
 
 
 async def trend_node(state: dict[str, Any]) -> dict[str, Any]:

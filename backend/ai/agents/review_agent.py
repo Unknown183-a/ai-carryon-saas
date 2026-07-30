@@ -90,7 +90,7 @@ def _next_retry_target(state: dict[str, Any]) -> tuple[Optional[str], list[dict[
         return _SCRIPT_LEVEL_CHECK_TARGET, findings
 
     fact = _run_check(
-        fact_check_prompt(),
+        fact_check_prompt(state["channel_config"]),
         f"Research summary: {state['research_summary']}\n\nScript: {state['script']}",
     )
     findings.append({"check": "fact", **fact})

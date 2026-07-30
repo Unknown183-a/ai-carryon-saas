@@ -70,6 +70,23 @@ class ChannelCreateRequest(BaseModel):
     country: str = "US"
     language: str = "en"
     category: str
+    content_type: str = "factual"  # "factual" (trend/web-search grounded, the
+    # only mode before this field existed) or "narrative" (fiction/story
+    # shorts: genre-angle rotation instead of Google Trends, RAG-continuity
+    # instead of web search, invented plot instead of claim-tracing — see
+    # ai/prompts/prompt_library.py and ai/agents/trend_agent.py). Adding a
+    # channel that needs different pipeline behavior should mean setting
+    # this field, not writing channel-specific code.
+    topic_angles: dict[str, list[str]] | None = None  # optional per-channel
+    # override of the built-in angle pool for this content_type (see
+    # ai/agents/trend_agent.py's CONTENT_TYPE_ANGLE_POOLS) — e.g. a fiction
+    # channel that wants romance/comedy angles instead of the built-in
+    # mystery/horror/crime set can supply its own pool here with no code
+    # change.
+    prompt_overrides: dict[str, str] | None = None  # optional per-agent
+    # extra instructions (keys: research, script, planner, seo, thumbnail,
+    # hook, tags, description — see prompt_library.py's _with_override),
+    # layered on top of that agent's base prompt for this channel only.
     brand: ChannelBrand = Field(default_factory=ChannelBrand)
     format: str = "shorts"
     target_audience: str | None = None

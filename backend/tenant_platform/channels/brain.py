@@ -45,8 +45,34 @@ class ChannelBrain:
         so `research_agent.py`, `trend_agent.py`, and every prompt in
         `prompt_library.py` keep working unchanged against a
         database-driven channel instead of the hardcoded one.
+
+        `prompt_overrides` used to be loaded from Firestore onto this
+        object and then silently dropped here — every agent's prompt was
+        100% fixed regardless of what a channel's own document said.
+        That's why a channel whose content doesn't fit the pipeline's
+        built-in assumptions (see `content_type` below) had no way to
+        steer any agent short of editing prompt_library.py itself, which
+        is exactly the "generalized, not hardcoded per-channel" gap this
+        fixes: `prompt_overrides` now rides along in `channel_config` so
+        every prompt builder in prompt_library.py can layer a channel's
+        own per-agent instructions on top of its base prompt, driven
+        entirely by Firestore data, no code change needed per channel.
+
+        `content_type` (also just a plain DNA field, defaulted here only
+        so every agent can rely on the key existing) is the other half:
+        it lets trend_agent/research_agent/script_agent/fact_check branch
+        between "factual" behavior (trend-chasing, web-search-grounded,
+        claim-traceable — the only mode this pipeline supported before)
+        and "narrative" behavior (genre/angle rotation instead of Google
+        Trends, RAG-continuity instead of web search, invented plot
+        explicitly allowed, consistency-with-premise instead of
+        fact-tracing). Any channel picks its mode via this one Firestore
+        field; no agent needs a channel-specific branch to add a new one.
         """
-        return dict(self.dna)
+        config = dict(self.dna)
+        config.setdefault("content_type", "factual")
+        config["prompt_overrides"] = dict(self.prompt_overrides)
+        return config
 
 
 def load_channel_brain(channel_doc: dict[str, Any]) -> ChannelBrain:
