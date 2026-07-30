@@ -38,7 +38,8 @@ COPY backend/ ./backend/
 WORKDIR /app/backend
 
 ENV PYTHONUNBUFFERED=1 \
-    PORT=8080
+    PORT=8080 \
+    PYTHONPATH=/app/backend
 
 EXPOSE 8080
 
