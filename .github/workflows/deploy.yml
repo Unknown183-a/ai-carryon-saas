@@ -155,7 +155,7 @@ jobs:
             --no-cpu-throttling
             --min-instances=1
             --max-instances=1
-            --memory=4Gi
+            --memory=8Gi
             --cpu=2
             --port=8080
             --command=python,-m
