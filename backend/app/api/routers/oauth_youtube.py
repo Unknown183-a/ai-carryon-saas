@@ -74,7 +74,22 @@ def _build_flow() -> Flow:
         raise HTTPException(status_code=503, detail="YOUTUBE_CLIENT_SECRETS_B64 is not configured")
 
     client_config = json.loads(base64.b64decode(raw_b64))
-    return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=_redirect_uri())
+    return Flow.from_client_config(
+        client_config,
+        scopes=SCOPES,
+        redirect_uri=_redirect_uri(),
+        # PKCE's code_verifier is generated fresh per Flow instance, but
+        # /connect-youtube and /oauth/youtube/callback are two separate
+        # requests -- each calling _build_flow() independently means the
+        # callback's Flow never has the verifier matching the challenge
+        # sent to Google in the connect step, so fetch_token() fails with
+        # "invalid_grant: Missing code verifier". This app is a
+        # confidential client (has its own client_secret), so PKCE isn't
+        # needed for security here -- disabling it removes the mismatch
+        # entirely instead of trying to persist the verifier across
+        # requests.
+        autogenerate_code_verifier=False,
+    )
 
 
 @router.get("/channels/{channel_id}/connect-youtube")
