@@ -87,6 +87,17 @@ export type RunSummary = {
   run_log: string[];
 };
 
+/** GET /channels/{id}/schedule — mirrors the `schedules` Firestore doc
+ * `register_schedule` creates (Ch.16, Phase 8). Timestamps are ISO 8601
+ * UTC strings, same as everywhere else this project stores time. */
+export type ScheduleInfo = {
+  channel_id: string;
+  enabled: boolean;
+  upload_schedule?: string | null;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+};
+
 export type GenerateRunResult = {
   run_id: string;
   status?: string;

@@ -27,6 +27,7 @@ from app.api.dependencies import get_current_user, get_firestore
 from app.database.firestore_collections import (
     find_workspace_for_uid,
     get_provider_keys,
+    get_schedule,
     list_channels_for_workspace,
     list_runs_for_channel,
     store_provider_keys,
@@ -137,6 +138,42 @@ def list_channel_runs(
     that triggered it, same isolation guarantee as provider keys.
     """
     return list_runs_for_channel(db, channel_id)
+
+
+@router.get("/{channel_id}/schedule")
+def get_channel_schedule(
+    channel_id: str,
+    channel_doc: dict = Depends(require_channel_access),
+    db: Client = Depends(get_firestore),
+):
+    """Closes the "when will this channel next auto-generate" gap: the
+    dashboard has no visibility into the `schedules` doc
+    `register_schedule` creates at channel-creation time (Ch.16, Phase
+    8) — this is the read side of that, gated by the same
+    `require_channel_access` chain as every other channel-scoped route.
+
+    Returns None-valued fields (never a 404) for a channel that somehow
+    has no schedule doc yet — that's a real, displayable state ("not
+    scheduled"), not an error, and matches how the scheduler's own
+    `is_due()` already treats a missing doc as "not due" rather than
+    raising.
+    """
+    schedule = get_schedule(db, channel_id)
+    if schedule is None:
+        return {
+            "channel_id": channel_id,
+            "enabled": False,
+            "upload_schedule": channel_doc.get("upload_schedule"),
+            "last_run_at": None,
+            "next_run_at": None,
+        }
+    return {
+        "channel_id": channel_id,
+        "enabled": schedule.get("enabled", True),
+        "upload_schedule": schedule.get("upload_schedule"),
+        "last_run_at": schedule.get("last_run_at"),
+        "next_run_at": schedule.get("next_run_at"),
+    }
 
 
 @router.post("/{channel_id}/generate")
