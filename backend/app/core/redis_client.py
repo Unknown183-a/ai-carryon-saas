@@ -6,7 +6,8 @@ back) instead of the usual TCP protocol — no persistent connection or
 connection pool to manage, which fits FastAPI's request/response cycle
 and works fine from any host that can make outbound HTTPS calls.
 
-Env vars required:
+Env vars required (platform default, used when a channel has no Redis
+override set — see below):
     UPSTASH_REDIS_REST_URL
     UPSTASH_REDIS_REST_TOKEN
 
@@ -30,6 +31,17 @@ per-user budget (`rl:user:{uid}`) intentionally is not, since it exists
 to protect the whole API's capacity, not one channel's; see
 app/api/middleware/rate_limit.py's docstring for that decision and the
 narrower per-channel counter it adds alongside the per-user one.
+
+Per-channel Redis (added after all channels sharing one free-tier
+Upstash database burned through its combined 500K commands/month cap in
+~4-5 days): a channel can supply its own Upstash `redis_rest_url` /
+`redis_rest_token` via the Providers screen, same as its own Gemini/Groq
+key. `get_redis()` picks up that channel's credentials automatically
+during a pipeline run via `redis_credentials_override`
+(ai/models/provider_key_context.py) — same override-with-fallback shape
+gemini/groq clients already use — so every call site below keeps calling
+plain `get_redis()` with no changes. A channel with no Redis key of its
+own keeps landing on the shared platform database, same as today.
 """
 
 from __future__ import annotations
@@ -38,6 +50,8 @@ import os
 from typing import Optional
 
 import httpx
+
+from ai.models.provider_key_context import redis_credentials_override
 
 
 def channel_key(channel_id: str, suffix: str) -> str:
@@ -118,14 +132,30 @@ class RedisClient:
         self._command("DEL", key)
 
 
-_client: Optional[RedisClient] = None
+_platform_client: Optional[RedisClient] = None
+_channel_clients: dict[tuple[str, str], RedisClient] = {}
 
 
 def get_redis() -> RedisClient:
-    """Returns a shared, lazily-created RedisClient. One instance per
-    process is enough — httpx.Client already pools connections internally.
+    """Returns the right RedisClient for the current context.
+
+    If a channel's own Upstash credentials are set on
+    `redis_credentials_override` (generation_service.py does this for the
+    duration of that channel's pipeline run), returns a client for that
+    channel's own database — cached per (url, token) pair across calls so
+    a run's several dozen cache touches share one httpx.Client instead of
+    opening a new one each time. Otherwise falls back to the single
+    shared platform client (lazily created, one per process), exactly as
+    before this override existed.
     """
-    global _client
-    if _client is None:
-        _client = RedisClient()
-    return _client
+    override = redis_credentials_override.get()
+    if override is not None:
+        if override not in _channel_clients:
+            url, token = override
+            _channel_clients[override] = RedisClient(url=url, token=token)
+        return _channel_clients[override]
+
+    global _platform_client
+    if _platform_client is None:
+        _platform_client = RedisClient()
+    return _platform_client

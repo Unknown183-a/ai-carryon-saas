@@ -21,3 +21,14 @@ gemini_key_override: contextvars.ContextVar[Optional[str]] = contextvars.Context
 groq_key_override: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
     "groq_key_override", default=None
 )
+
+# (url, token) for the channel's own Upstash Redis database, or None to
+# fall back to the platform-wide UPSTASH_REDIS_REST_URL/TOKEN — same
+# override-with-fallback shape as gemini/groq above. Set once per run in
+# generation_service.py so every ch:{channel_id}:* cache/state read or
+# write during that run lands in that channel's own Redis instance
+# instead of the single shared one, without threading a parameter through
+# every call site in ai/agents/*, ai/rag/embed.py, etc.
+redis_credentials_override: contextvars.ContextVar[Optional[tuple[str, str]]] = contextvars.ContextVar(
+    "redis_credentials_override", default=None
+)

@@ -27,7 +27,11 @@ import uuid
 from typing import Any
 
 from ai.langgraph.graph import get_graph
-from ai.models.provider_key_context import gemini_key_override, groq_key_override
+from ai.models.provider_key_context import (
+    gemini_key_override,
+    groq_key_override,
+    redis_credentials_override,
+)
 from app.database.firestore_collections import record_run
 from tenant_platform.channels.brain import load_channel_brain
 
@@ -69,6 +73,7 @@ async def run_generation(
 
     gemini_token = None
     groq_token = None
+    redis_token = None
     if db is not None:
         try:
             from app.database.firestore_collections import get_provider_keys
@@ -80,6 +85,10 @@ async def run_generation(
                 gemini_token = gemini_key_override.set(decrypted["gemini_api_key"])
             if decrypted.get("groq_api_key"):
                 groq_token = groq_key_override.set(decrypted["groq_api_key"])
+            if decrypted.get("redis_rest_url") and decrypted.get("redis_rest_token"):
+                redis_token = redis_credentials_override.set(
+                    (decrypted["redis_rest_url"], decrypted["redis_rest_token"])
+                )
         except Exception:  # noqa: BLE001
             pass
 
@@ -105,6 +114,8 @@ async def run_generation(
         gemini_key_override.reset(gemini_token)
     if groq_token is not None:
         groq_key_override.reset(groq_token)
+    if redis_token is not None:
+        redis_credentials_override.reset(redis_token)
 
     result = {
         "run_id": final_state["run_id"],
