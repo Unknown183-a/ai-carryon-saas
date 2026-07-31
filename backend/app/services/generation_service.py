@@ -77,10 +77,10 @@ async def run_generation(
     if db is not None:
         try:
             from app.database.firestore_collections import get_provider_keys
-            from tenant_platform.security.provider_keys import decrypt_provider_keys
+            from tenant_platform.security.provider_keys import decrypt_provider_keys_lenient
 
             encrypted = get_provider_keys(db, channel_id)
-            decrypted = decrypt_provider_keys(encrypted) if encrypted else {}
+            decrypted = decrypt_provider_keys_lenient(encrypted, channel_id=channel_id) if encrypted else {}
             if decrypted.get("gemini_api_key"):
                 gemini_token = gemini_key_override.set(decrypted["gemini_api_key"])
             if decrypted.get("groq_api_key"):
@@ -89,8 +89,18 @@ async def run_generation(
                 redis_token = redis_credentials_override.set(
                     (decrypted["redis_rest_url"], decrypted["redis_rest_token"])
                 )
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            # Only a Firestore-read failure (not a decrypt failure — that's
+            # now handled per-field above and never raises) reaches here.
+            # Still degrade to platform defaults rather than fail the run,
+            # but log it — silently swallowing this is what hid the
+            # original per-channel-Redis bug from ever surfacing anywhere.
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "Failed to load provider-key overrides for channel %s — falling back to platform defaults",
+                channel_id,
+            )
 
     graph = get_graph()
     try:

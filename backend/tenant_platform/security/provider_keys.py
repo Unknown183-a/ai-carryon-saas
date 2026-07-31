@@ -56,6 +56,40 @@ def decrypt_provider_keys(encrypted_keys: dict[str, str]) -> dict[str, str]:
     return {field: fernet.decrypt(value.encode("utf-8")).decode("utf-8") for field, value in encrypted_keys.items()}
 
 
+def decrypt_provider_keys_lenient(encrypted_keys: dict[str, str], *, channel_id: str) -> dict[str, str]:
+    """Same job as `decrypt_provider_keys`, but one field that fails to
+    decrypt (stale value from a rotated CHANNEL_SECRETS_ENCRYPTION_KEY,
+    corruption, anything) is logged and skipped instead of taking every
+    other field down with it.
+
+    `decrypt_provider_keys`'s dict comprehension decrypts every field in
+    one expression — a single bad value raises out of the whole call,
+    and generation_service.py's run_generation wraps that fetch in a
+    broad `except Exception: pass` (needed so a provider-key problem
+    degrades to platform defaults instead of failing the whole run).
+    Combined, one stale field silently zeroed out *every* override for
+    that channel — including ones with nothing wrong with them — with no
+    error anywhere. This is what run_generation should call instead.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+    fernet = _fernet()
+    result: dict[str, str] = {}
+    for field, value in encrypted_keys.items():
+        try:
+            result[field] = fernet.decrypt(value.encode("utf-8")).decode("utf-8")
+        except Exception:  # noqa: BLE001 — one bad field must not take the others down
+            logger.warning(
+                "Provider key %r for channel %s failed to decrypt — skipping just that "
+                "field; likely stale (encrypted under an old CHANNEL_SECRETS_ENCRYPTION_KEY) "
+                "or corrupted. Re-saving it from the Providers screen will fix it.",
+                field,
+                channel_id,
+            )
+    return result
+
+
 # ── OAuth state signing (Ch.12d extension: self-serve YouTube connect) ────
 # The /connect-youtube -> Google consent -> /oauth/youtube/callback round
 # trip has no Firebase JWT on the callback leg (Google redirects the
