@@ -15,6 +15,8 @@ const PROVIDER_LABELS: Record<keyof ProviderKeyStatus, string> = {
   youtube_oauth_token: "YouTube",
   google_cloud_project: "Google Cloud",
   firebase_storage_bucket: "Firebase Storage",
+  redis_rest_url: "Redis (URL)",
+  redis_rest_token: "Redis (Token)",
 };
 
 const PROVIDER_FIELDS = Object.keys(PROVIDER_LABELS) as (keyof ProviderKeyStatus)[];

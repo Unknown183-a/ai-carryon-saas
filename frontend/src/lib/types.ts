@@ -19,6 +19,8 @@ export type ProviderKeys = {
   pexels_api_key?: string;
   google_cloud_project?: string;
   firebase_storage_bucket?: string;
+  redis_rest_url?: string;
+  redis_rest_token?: string;
 };
 
 export type ChannelCreateRequest = {
@@ -48,6 +50,8 @@ export type ProviderKeyStatus = {
   pexels_api_key: boolean;
   google_cloud_project: boolean;
   firebase_storage_bucket: boolean;
+  redis_rest_url: boolean;
+  redis_rest_token: boolean;
 };
 
 export type Channel = {

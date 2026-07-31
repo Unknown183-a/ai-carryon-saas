@@ -36,6 +36,14 @@ class ProviderKeys(BaseModel):
     pexels_api_key: str | None = None
     google_cloud_project: str | None = None
     firebase_storage_bucket: str | None = None
+    redis_rest_url: str | None = None  # this channel's own Upstash Redis
+    # REST URL, e.g. "https://good-squirrel-191689.upstash.io" — falls back
+    # to the platform-wide UPSTASH_REDIS_REST_URL if unset, same as every
+    # other field here. Added so each channel can have its own 500K
+    # commands/month free-tier budget instead of every channel sharing one.
+    redis_rest_token: str | None = None  # goes with redis_rest_url above;
+    # both must be set together for a channel's Redis override to take
+    # effect (see app/core/redis_client.py's get_redis()).
 
 
 class ProviderKeyStatus(BaseModel):
@@ -55,6 +63,8 @@ class ProviderKeyStatus(BaseModel):
     pexels_api_key: bool = False
     google_cloud_project: bool = False
     firebase_storage_bucket: bool = False
+    redis_rest_url: bool = False
+    redis_rest_token: bool = False
 
 
 class ChannelCreateRequest(BaseModel):
