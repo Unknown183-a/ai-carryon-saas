@@ -106,7 +106,7 @@ _real_client._client = httpx.Client(
     base_url=_real_client._base_url,
     transport=httpx.MockTransport(fake_upstash.handle),
 )
-redis_client_module._client = _real_client
+redis_client_module._platform_client = _real_client
 
 from app.api.main import app  # noqa: E402  (import after monkeypatch so it uses the fake)
 
