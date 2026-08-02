@@ -43,7 +43,11 @@ import uuid
 from typing import Any
 
 from app.core.redis_client import channel_key, get_redis
-from app.database.firestore_collections import create_channel_record, update_channel_status
+from app.database.firestore_collections import (
+    create_channel_record,
+    list_channels_for_workspace,
+    update_channel_status,
+)
 from app.models.channel import ChannelCreateRequest
 from ai.rag.collections import ensure_collections
 from tenant_platform.channels.brain import ChannelBrain
@@ -55,15 +59,43 @@ class ChannelValidationError(ValueError):
     pass
 
 
-def _validate(payload: ChannelCreateRequest) -> None:
+def _normalize_handle(handle: str | None) -> str | None:
+    """Case-insensitive, "@"-tolerant form of a YouTube handle, used only
+    for duplicate comparison — never stored or shown, so the user's
+    original casing/formatting is preserved everywhere else.
+    """
+    if not handle:
+        return None
+    return handle.strip().lstrip("@").lower() or None
+
+
+def _validate(payload: ChannelCreateRequest, workspace_id: str, db) -> None:
     """Step 1: Validate Configuration. Pydantic already enforced field
     types/required-ness on the way in; this is the handful of business
     rules that aren't expressible as a type.
+
+    Also rejects a duplicate YouTube handle within the SAME workspace —
+    a user can run multiple different channels, but not two channels for
+    the same underlying YouTube account. This is a same-workspace check
+    only: two different workspaces are free to each register a channel
+    for the same handle (e.g. a handle change of ownership, or this
+    platform not being the only source of truth for who "owns" a handle
+    on YouTube itself).
     """
     if not payload.name.strip():
         raise ChannelValidationError("Channel name cannot be empty")
     if not payload.category.strip():
         raise ChannelValidationError("Channel category cannot be empty")
+
+    new_handle = _normalize_handle(payload.youtube_handle)
+    if new_handle:
+        existing_channels = list_channels_for_workspace(db, workspace_id)
+        for existing in existing_channels:
+            if _normalize_handle(existing.get("youtube_handle")) == new_handle:
+                raise ChannelValidationError(
+                    f"A channel for {payload.youtube_handle} already exists in your workspace "
+                    f"({existing.get('name', existing.get('channel_id'))})."
+                )
 
 
 def _generate_channel_id(name: str) -> str:
@@ -79,8 +111,9 @@ def create_channel(payload: ChannelCreateRequest, workspace_id: str, owner_uid: 
     """Runs the full fig 12d.1 chain and returns the finished channel
     document (DNA fields only — never provider keys, encrypted or not).
     """
-    # Step 1: Validate Configuration
-    _validate(payload)
+    # Step 1: Validate Configuration (includes same-workspace
+    # duplicate-YouTube-handle check)
+    _validate(payload, workspace_id, db)
 
     channel_id = _generate_channel_id(payload.name)
 
