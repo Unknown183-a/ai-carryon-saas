@@ -21,6 +21,7 @@ export type ProviderKeys = {
   firebase_storage_bucket?: string;
   redis_rest_url?: string;
   redis_rest_token?: string;
+  celery_broker_url?: string;
 };
 
 export type ChannelCreateRequest = {
@@ -52,6 +53,7 @@ export type ProviderKeyStatus = {
   firebase_storage_bucket: boolean;
   redis_rest_url: boolean;
   redis_rest_token: boolean;
+  celery_broker_url: boolean;
 };
 
 export type Channel = {

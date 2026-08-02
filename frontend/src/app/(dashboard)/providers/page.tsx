@@ -17,6 +17,7 @@ const PROVIDER_LABELS: Record<keyof ProviderKeyStatus, string> = {
   firebase_storage_bucket: "Firebase Storage",
   redis_rest_url: "Redis (URL)",
   redis_rest_token: "Redis (Token)",
+  celery_broker_url: "Celery Broker URL",
 };
 
 const PROVIDER_FIELDS = Object.keys(PROVIDER_LABELS) as (keyof ProviderKeyStatus)[];
