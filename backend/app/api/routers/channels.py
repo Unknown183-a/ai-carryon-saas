@@ -125,14 +125,14 @@ def update_provider_keys(
         existing.update(updates)
         store_provider_keys(db, channel_id, existing)
 
-    if payload.celery_broker_url:
-        background_tasks.add_task(
-            provision_channel_broker,
-            os.environ["FIREBASE_PROJECT_ID"],
-            channel_id,
-            payload.celery_broker_url,
-        )
-
+    # NOTE: automatic provisioning (broker_provisioning.py) is
+    # temporarily disabled here — running the ~1-5min Cloud Run deploy
+    # operation inline via BackgroundTasks on 2026-08-02 caused the
+    # gateway process to stall on unrelated requests (504s on /channels,
+    # /workspaces) while it waited. The module itself is fine; it needs
+    # to run somewhere that can't starve the request-handling process —
+    # a real Celery task, or a separate Cloud Run Job — before being
+    # re-wired here. See chat history for the incident.
     return _status_from_stored(get_provider_keys(db, channel_id))
 
 
