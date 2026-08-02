@@ -183,6 +183,96 @@ jobs:
             --format='value(status.conditions[0].status)' | grep -q True \
             || (echo "Worker service not in a healthy state" && exit 1)
 
+  # --- Per-channel workers: channels with their own celery_broker_url
+  # (set via the Providers UI, stored in Firestore per Ch.12d — see
+  # celery_broker_url_override in ai/models/provider_key_context.py)
+  # need their OWN listening worker, not just the enqueue-side routing
+  # graph.py already does. The shared `deploy` job's ai-carryon-worker
+  # above only ever consumes from the platform-wide CELERY_BROKER_URL
+  # secret — a channel isn't actually isolated until a worker like this
+  # one exists for it too. Add one matrix entry per such channel; the
+  # broker_secret value here is a DEPLOY-TIME Secret Manager entry,
+  # deliberately separate from the Firestore value the gateway reads —
+  # both must be kept in sync by hand when a channel's broker URL is
+  # rotated (see docs/deployment/README.md for the rotation runbook,
+  # once one exists).
+  deploy_channel_workers:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        channel:
+          - slug: ai_carryon_stories_5e835f29
+            service: ai-carryon-worker-stories
+            broker_secret: CELERY_BROKER_URL__AI_CARRYON_STORIES_5E835F29
+    steps:
+      - name: Compute lowercase image name
+        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # Same shape as the shared worker's compute_secrets step, except
+      # CELERY_BROKER_URL is swapped for THIS channel's own broker
+      # secret instead of the platform-wide one. If that per-channel
+      # secret doesn't exist yet, this FAILS LOUDLY rather than
+      # silently falling back to a shared broker — a channel worker
+      # must never silently share a broker, or this whole isolation
+      # effort is defeated invisibly.
+      - name: Compute available secrets for this channel
+        id: compute_secrets
+        run: |
+          CANDIDATES="FIREBASE_SERVICE_ACCOUNT_JSON UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN QDRANT_URL QDRANT_API_KEY CHANNEL_SECRETS_ENCRYPTION_KEY GEMINI_API_KEY GROQ_API_KEY OPENAI_API_KEY YOUTUBE_CLIENT_SECRETS_B64 YOUTUBE_TOKEN_B64 ELEVENLABS_API_KEY INTERNAL_SCHEDULER_TOKEN SERPER_API_KEY PEXELS_API_KEY YOUTUBE_OAUTH_REDIRECT_URI FRONTEND_URL"
+          {
+            echo "secrets_list<<SECRETS_EOF"
+            for VAR in $CANDIDATES; do
+              if gcloud secrets describe "$VAR" --project "${{ secrets.GCP_PROJECT_ID }}" >/dev/null 2>&1; then
+                echo "${VAR}=${VAR}:latest"
+              else
+                echo "  (skipping $VAR — no Secret Manager entry yet)" >&2
+              fi
+            done
+            if gcloud secrets describe "${{ matrix.channel.broker_secret }}" --project "${{ secrets.GCP_PROJECT_ID }}" >/dev/null 2>&1; then
+              echo "CELERY_BROKER_URL=${{ matrix.channel.broker_secret }}:latest"
+            else
+              echo "::error::Secret ${{ matrix.channel.broker_secret }} not found — create it before this channel's worker can deploy with its own isolated broker."
+              exit 1
+            fi
+            echo "SECRETS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Deploy ${{ matrix.channel.service }} to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ matrix.channel.service }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          image: ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          region: ${{ env.CLOUD_RUN_REGION }}
+          flags: >-
+            --no-allow-unauthenticated
+            --no-cpu-throttling
+            --min-instances=1
+            --max-instances=1
+            --memory=8Gi
+            --cpu=2
+            --port=8080
+            --command=python,-m
+            --args=app.workers.worker_entrypoint
+          env_vars: FIREBASE_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+          secrets: ${{ steps.compute_secrets.outputs.secrets_list }}
+
+      - name: Verify ${{ matrix.channel.service }} is running
+        run: |
+          gcloud run services describe ${{ matrix.channel.service }} \
+            --region ${{ env.CLOUD_RUN_REGION }} \
+            --format='value(status.conditions[0].status)' | grep -q True \
+            || (echo "${{ matrix.channel.service }} not in a healthy state" && exit 1)
+
   # --- Frontend: Firebase Hosting, kept separate from the backend
   # `deploy` job above on purpose — different toolchain (npm build, not
   # a Docker image), different target (Firebase Hosting, not Cloud
