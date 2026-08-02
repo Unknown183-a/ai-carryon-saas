@@ -80,10 +80,19 @@ def ensure_channel_worker(project_id: str, channel_id: str, broker_secret_name: 
     parent = f"projects/{project_id}/locations/{_REGION}"
     service_path = f"{parent}/services/{service_id}"
 
+    secret_client = secretmanager.SecretManagerServiceClient()
+
+    def _secret_exists(name: str) -> bool:
+        try:
+            secret_client.get_secret(name=f"projects/{project_id}/secrets/{name}")
+            return True
+        except NotFound:
+            return False
+
     env_vars = [run_v2.EnvVar(name="FIREBASE_PROJECT_ID", value=project_id)]
     secret_env = [
         ("CELERY_BROKER_URL", broker_secret_name),
-        *[(var, var) for var in _SHARED_SECRET_CANDIDATES],
+        *[(var, var) for var in _SHARED_SECRET_CANDIDATES if _secret_exists(var)],
     ]
     for env_name, secret_name in secret_env:
         env_vars.append(
@@ -116,14 +125,14 @@ def ensure_channel_worker(project_id: str, channel_id: str, broker_secret_name: 
     )
 
     try:
-        operation = client.create_service(parent=parent, service=service, service_id=service_id)
-        operation.result(timeout=300)
-        logger.info("Created worker service %s for channel %s", service_id, channel_id)
+        client.create_service(parent=parent, service=service, service_id=service_id)
+        logger.info("Kicked off create for worker service %s (channel %s) — deploy runs "
+                     "in the background, check Cloud Run console/logs for completion", service_id, channel_id)
     except AlreadyExists:
         service.name = service_path
-        operation = client.update_service(service=service)
-        operation.result(timeout=300)
-        logger.info("Updated worker service %s for channel %s", service_id, channel_id)
+        client.update_service(service=service)
+        logger.info("Kicked off update for worker service %s (channel %s) — deploy runs "
+                     "in the background, check Cloud Run console/logs for completion", service_id, channel_id)
 
     return service_id
 
