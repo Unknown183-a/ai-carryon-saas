@@ -20,7 +20,9 @@ enqueued, per graph.py's own routing.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import os
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from google.cloud.firestore import Client
 
 from app.api.dependencies import get_current_user, get_firestore
@@ -37,6 +39,7 @@ from app.services.generation_service import run_generation
 from tenant_platform.factory.factory import ChannelValidationError
 from tenant_platform.factory.factory import create_channel as factory_create_channel
 from tenant_platform.security.permissions import require_channel_access
+from tenant_platform.infra.broker_provisioning import provision_channel_broker
 from tenant_platform.security.provider_keys import encrypt_provider_keys
 
 router = APIRouter(prefix="/channels", tags=["channels"])
@@ -104,6 +107,7 @@ def get_provider_key_status(
 @router.patch("/{channel_id}/provider-keys", response_model=ProviderKeyStatus)
 def update_provider_keys(
     payload: ProviderKeys,
+    background_tasks: BackgroundTasks,
     channel_doc: dict = Depends(require_channel_access),
     db: Client = Depends(get_firestore),
 ):
@@ -120,6 +124,15 @@ def update_provider_keys(
         existing = get_provider_keys(db, channel_id)
         existing.update(updates)
         store_provider_keys(db, channel_id, existing)
+
+    if payload.celery_broker_url:
+        background_tasks.add_task(
+            provision_channel_broker,
+            os.environ["FIREBASE_PROJECT_ID"],
+            channel_id,
+            payload.celery_broker_url,
+        )
+
     return _status_from_stored(get_provider_keys(db, channel_id))
 
 

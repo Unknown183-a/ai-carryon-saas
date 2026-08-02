@@ -32,3 +32,5 @@ google-auth-oauthlib
 # Shared
 python-dotenv
 requests
+google-cloud-secret-manager
+google-cloud-run
