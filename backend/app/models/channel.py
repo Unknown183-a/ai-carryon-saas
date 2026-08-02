@@ -44,6 +44,12 @@ class ProviderKeys(BaseModel):
     redis_rest_token: str | None = None  # goes with redis_rest_url above;
     # both must be set together for a channel's Redis override to take
     # effect (see app/core/redis_client.py's get_redis()).
+    celery_broker_url: str | None = None  # this channel's own Celery
+    # rediss:// connection string (TCP wire protocol — a different
+    # credential pair than redis_rest_url/token above, which is
+    # Upstash's REST API). Falls back to the platform-wide
+    # CELERY_BROKER_URL if unset (see ai/langgraph/graph.py's
+    # _enqueue_render).
 
 
 class ProviderKeyStatus(BaseModel):
@@ -65,6 +71,7 @@ class ProviderKeyStatus(BaseModel):
     firebase_storage_bucket: bool = False
     redis_rest_url: bool = False
     redis_rest_token: bool = False
+    celery_broker_url: bool = False
 
 
 class ChannelCreateRequest(BaseModel):

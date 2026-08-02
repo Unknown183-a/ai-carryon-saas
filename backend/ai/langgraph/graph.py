@@ -101,6 +101,7 @@ async def _enqueue_render(state: dict) -> dict:
     """
     from celery import chain
 
+    from ai.models.provider_key_context import celery_broker_url_override
     from app.workers.clips_worker import fetch_clips
     from app.workers.finalize_worker import (
         finalize_render_failure,
@@ -138,10 +139,17 @@ async def _enqueue_render(state: dict) -> dict:
     # link=/link_error= rather than plain chain steps, and why
     # channel_id/run_id are bound here rather than relied on to arrive
     # as call arguments.
-    async_result = render_chain.apply_async(
+    apply_kwargs = dict(
         link=finalize_render_success.s(channel_id=channel_id, run_id=run_id),
         link_error=finalize_render_failure.s(channel_id=channel_id, run_id=run_id),
     )
+    broker_override = celery_broker_url_override.get()
+    if broker_override:
+        from app.workers.broker_connection import get_broker_connection
+
+        apply_kwargs["connection"] = get_broker_connection(broker_override)
+
+    async_result = render_chain.apply_async(**apply_kwargs)
 
     return {
         "render_task_id": async_result.id,

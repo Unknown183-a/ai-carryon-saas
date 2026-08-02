@@ -32,3 +32,12 @@ groq_key_override: contextvars.ContextVar[Optional[str]] = contextvars.ContextVa
 redis_credentials_override: contextvars.ContextVar[Optional[tuple[str, str]]] = contextvars.ContextVar(
     "redis_credentials_override", default=None
 )
+
+# Channel's own Celery broker rediss:// URL, or None to fall back to the
+# platform-wide CELERY_BROKER_URL — same override-with-fallback shape as
+# the others above. Set once per run in generation_service.py; read in
+# ai/langgraph/graph.py's _enqueue_render to route that run's render
+# chain onto the channel's own broker instead of the shared one.
+celery_broker_url_override: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "celery_broker_url_override", default=None
+)

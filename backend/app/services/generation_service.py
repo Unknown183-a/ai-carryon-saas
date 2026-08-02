@@ -28,6 +28,7 @@ from typing import Any
 
 from ai.langgraph.graph import get_graph
 from ai.models.provider_key_context import (
+    celery_broker_url_override,
     gemini_key_override,
     groq_key_override,
     redis_credentials_override,
@@ -74,6 +75,7 @@ async def run_generation(
     gemini_token = None
     groq_token = None
     redis_token = None
+    celery_broker_token = None
     if db is not None:
         try:
             from app.database.firestore_collections import get_provider_keys
@@ -89,6 +91,8 @@ async def run_generation(
                 redis_token = redis_credentials_override.set(
                     (decrypted["redis_rest_url"], decrypted["redis_rest_token"])
                 )
+            if decrypted.get("celery_broker_url"):
+                celery_broker_token = celery_broker_url_override.set(decrypted["celery_broker_url"])
         except Exception:
             # Only a Firestore-read failure (not a decrypt failure — that's
             # now handled per-field above and never raises) reaches here.
@@ -126,6 +130,8 @@ async def run_generation(
         groq_key_override.reset(groq_token)
     if redis_token is not None:
         redis_credentials_override.reset(redis_token)
+    if celery_broker_token is not None:
+        celery_broker_url_override.reset(celery_broker_token)
 
     result = {
         "run_id": final_state["run_id"],
