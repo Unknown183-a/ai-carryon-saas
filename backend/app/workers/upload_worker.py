@@ -28,6 +28,7 @@ import logging
 from typing import Any
 
 from app.workers.celery_app import celery_app
+from app.workers.storage import ensure_local
 from ai.langgraph.hardcoded_channel import HARDCODED_CHANNEL_ID
 from integrations.youtube.client import upload_video
 
@@ -108,7 +109,11 @@ def _channel_youtube_token(channel_id: str) -> str | None:
 )
 def upload_to_youtube(payload: dict[str, Any]) -> dict[str, Any]:
     channel_id = payload["channel_id"]
-    video_path = payload["video_path"]
+    run_id = payload["run_id"]
+    # video_path may be a `firebase://...` reference if render_video ran
+    # on a container that's since been recycled — resolve to a local file
+    # before handing it to the YouTube upload call, which needs a real path.
+    video_path = str(ensure_local(payload["video_path"], channel_id, run_id))
     seo = payload.get("seo") or {}
     description = payload.get("description", "")
     tags = payload.get("tags") or []

@@ -32,7 +32,7 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFont
 
 from app.workers.celery_app import celery_app
-from app.workers.storage import run_dir
+from app.workers.storage import persist, run_dir
 
 CANVAS_SIZE = (1280, 720)  # YouTube's standard thumbnail resolution
 MARGIN = 80
@@ -98,5 +98,6 @@ def generate_thumbnail(payload: dict[str, Any]) -> dict[str, Any]:
 
     thumbnail_path = run_dir(channel_id, run_id) / "thumbnail.png"
     image.save(thumbnail_path, "PNG")
+    storage_ref = persist(thumbnail_path, channel_id, run_id)
 
-    return {**payload, "thumbnail_path": str(thumbnail_path)}
+    return {**payload, "thumbnail_path": storage_ref}

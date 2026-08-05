@@ -19,7 +19,7 @@ import requests
 
 from ai.memory.clip_memory import get_used_clip_ids, record_clip_usage
 from app.workers.celery_app import celery_app
-from app.workers.storage import run_dir
+from app.workers.storage import persist, run_dir
 
 PEXELS_SEARCH_URL = "https://api.pexels.com/videos/search"
 CLIP_COUNT = 4
@@ -190,7 +190,7 @@ def fetch_clips(payload: dict[str, Any]) -> dict[str, Any]:
             with open(clip_path, "wb") as f:
                 for chunk in r.iter_content(chunk_size=1 << 16):
                     f.write(chunk)
-        clip_paths.append(str(clip_path))
+        clip_paths.append(persist(clip_path, channel_id, run_id))
 
         video_id = video.get("id")
         if video_id is not None:

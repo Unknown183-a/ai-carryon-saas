@@ -7,6 +7,9 @@ pydantic
 firebase-admin
 google-cloud-firestore
 
+# Worker chain cross-instance artifact persistence (app/workers/storage.py)
+google-cloud-storage
+
 # Phase 3 — Redis (Upstash REST client) + rate limiter identity decoding
 httpx
 pyjwt

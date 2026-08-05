@@ -14,7 +14,7 @@ import subprocess
 from typing import Any
 
 from app.workers.celery_app import celery_app
-from app.workers.storage import run_dir
+from app.workers.storage import ensure_local, persist, run_dir
 
 TARGET_SIZE = (1080, 1920)
 
@@ -54,8 +54,15 @@ def _build_filter_complex(clip_count: int, per_clip_seconds: float) -> str:
 def render_video(payload: dict[str, Any]) -> dict[str, Any]:
     channel_id = payload["channel_id"]
     run_id = payload["run_id"]
-    audio_path = payload["audio_path"]
-    clip_paths: list[str] = payload["clip_paths"]
+
+    # audio_path/clip_paths may be `firebase://...` references written by
+    # a different (possibly since-recycled) container — resolve each to a
+    # local file on *this* container before handing anything to ffmpeg,
+    # which only understands local paths.
+    audio_path = str(ensure_local(payload["audio_path"], channel_id, run_id))
+    clip_paths: list[str] = [
+        str(ensure_local(p, channel_id, run_id)) for p in payload["clip_paths"]
+    ]
 
     output_path = run_dir(channel_id, run_id) / "final.mp4"
 
@@ -83,5 +90,6 @@ def render_video(payload: dict[str, Any]) -> dict[str, Any]:
     ]
 
     subprocess.run(command, check=True, capture_output=True, timeout=15 * 60)
+    storage_ref = persist(output_path, channel_id, run_id)
 
-    return {**payload, "video_path": str(output_path)}
+    return {**payload, "video_path": storage_ref}

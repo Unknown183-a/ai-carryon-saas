@@ -4,8 +4,9 @@ Voice Worker (Ch.15: "Voice generation... Worker... 10-30 seconds").
 First link in the render chain LangGraph's terminal node enqueues (see
 `ai/langgraph/graph.py`'s `_enqueue_render` node). Takes the reviewed
 pipeline's script, generates spoken audio, writes it to this run's local
-output dir (see `storage.py` for why local, for now), and passes the
-payload on to `thumbnail_worker` unchanged plus `audio_path`.
+output dir, persists it to Firebase Storage so a later chain step on a
+different container can still find it (see `storage.py`), and passes
+the payload on to `thumbnail_worker` unchanged plus `audio_path`.
 
 `autoretry_for=(Exception,)` here is deliberately as broad as
 `ai/agents/_utils.py`'s `retry_with_backoff` — a flaky ElevenLabs call,
@@ -24,7 +25,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.workers.celery_app import celery_app
-from app.workers.storage import run_dir
+from app.workers.storage import persist, run_dir
 from integrations.elevenlabs.client import generate_speech
 
 
@@ -51,5 +52,6 @@ def generate_voice(payload: dict[str, Any]) -> dict[str, Any]:
 
     audio_path = run_dir(channel_id, run_id) / "voice.mp3"
     audio_path.write_bytes(audio_bytes)
+    storage_ref = persist(audio_path, channel_id, run_id)
 
-    return {**payload, "audio_path": str(audio_path)}
+    return {**payload, "audio_path": storage_ref}

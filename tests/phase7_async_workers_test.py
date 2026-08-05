@@ -101,10 +101,39 @@ check(
 # ═══════════════════════════════════════════════════════════════════════════
 print("\n=== Test 2: each task has its own autoretry config ===")
 
+import app.workers.render_worker as render_worker_module  # noqa: E402
+import app.workers.thumbnail_worker as thumbnail_worker_module  # noqa: E402
+import app.workers.upload_worker as upload_worker_module  # noqa: E402
+import app.workers.voice_worker as voice_worker_module  # noqa: E402
 from app.workers.render_worker import render_video  # noqa: E402
 from app.workers.thumbnail_worker import generate_thumbnail  # noqa: E402
 from app.workers.upload_worker import upload_to_youtube  # noqa: E402
 from app.workers.voice_worker import generate_voice  # noqa: E402
+
+# storage.persist()/ensure_local() now talk to Firebase Storage (Phase 7
+# follow-up fix — see storage.py's docstring). This file's own stated
+# contract is "no real API keys or network access needed to run", so —
+# same treatment as ElevenLabs/ffmpeg/YouTube below — fake the storage
+# round trip too: single-process eager mode means the local file these
+# tasks just wrote is always still on disk for the next task in the
+# chain, so persist() is a no-op and ensure_local() just resolves the
+# path that's already local, matching real behavior on a single worker.
+from pathlib import Path as _Path  # noqa: E402
+
+
+def _fake_persist(local_path, channel_id, run_id):
+    return str(local_path)
+
+
+def _fake_ensure_local(path_or_ref, channel_id, run_id):
+    return _Path(path_or_ref)
+
+
+for _mod in (voice_worker_module, thumbnail_worker_module, render_worker_module, upload_worker_module):
+    if hasattr(_mod, "persist"):
+        _mod.persist = _fake_persist
+    if hasattr(_mod, "ensure_local"):
+        _mod.ensure_local = _fake_ensure_local
 
 for task, label, min_retries in [
     (generate_voice, "generate_voice", 1),
