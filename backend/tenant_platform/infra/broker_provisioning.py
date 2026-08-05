@@ -20,6 +20,7 @@ they paste that string into the Providers screen.
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 import re
 
@@ -29,7 +30,8 @@ from google.cloud import run_v2, secretmanager
 logger = logging.getLogger(__name__)
 
 _SHARED_SECRET_CANDIDATES = [
-    "FIREBASE_SERVICE_ACCOUNT_JSON", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN",
+    "FIREBASE_SERVICE_ACCOUNT_JSON", "FIREBASE_STORAGE_BUCKET",
+    "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN",
     "QDRANT_URL", "QDRANT_API_KEY", "CHANNEL_SECRETS_ENCRYPTION_KEY", "GEMINI_API_KEY",
     "GROQ_API_KEY", "OPENAI_API_KEY", "YOUTUBE_CLIENT_SECRETS_B64", "YOUTUBE_TOKEN_B64",
     "ELEVENLABS_API_KEY", "INTERNAL_SCHEDULER_TOKEN", "SERPER_API_KEY", "PEXELS_API_KEY",
@@ -89,7 +91,25 @@ def ensure_channel_worker(project_id: str, channel_id: str, broker_secret_name: 
         except NotFound:
             return False
 
-    env_vars = [run_v2.EnvVar(name="FIREBASE_PROJECT_ID", value=project_id)]
+    env_vars = [
+        run_v2.EnvVar(name="FIREBASE_PROJECT_ID", value=project_id),
+        # Forces the Cloud Run Admin API to treat this as a genuine
+        # spec change on every call, even when nothing else here
+        # differs from the currently live revision — which, with a
+        # floating `:latest` image tag and secret refs pinned to
+        # `version="latest"` (both static strings), it otherwise
+        # would. Confirmed against a real deploy: this function
+        # reporting success does NOT guarantee a new revision actually
+        # got created — `latestReadyRevisionName` stayed on a
+        # day-old revision until forced by hand with `gcloud run
+        # services update --image=...`, even though `:latest` in the
+        # registry had moved on. A revision Cloud Run DOES decide to
+        # create always resolves a floating tag to whatever it
+        # currently points at, so bumping this timestamp is enough to
+        # guarantee current code deploys — no need to resolve/pin an
+        # image digest ourselves.
+        run_v2.EnvVar(name="DEPLOYED_AT", value=dt.datetime.now(dt.timezone.utc).isoformat()),
+    ]
     secret_env = [
         ("CELERY_BROKER_URL", broker_secret_name),
         *[(var, var) for var in _SHARED_SECRET_CANDIDATES if _secret_exists(var)],
