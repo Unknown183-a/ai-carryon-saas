@@ -132,12 +132,36 @@ def update_provider_keys(
     # celery_app at module scope would make CELERY_BROKER_URL a
     # required env var just to import this router, breaking every
     # test that doesn't set one.
+    #
+    # Wrapped in try/except (see incident on 2026-08-08): `.delay()`
+    # publishes through the gateway's own shared platform broker, not
+    # the channel-specific URL the caller just supplied — so a broker
+    # outage/quota exhaustion on that shared instance previously
+    # crashed this entire request with an unhandled
+    # kombu.exceptions.OperationalError. Starlette doesn't attach CORS
+    # headers to a response built from an unhandled exception
+    # unwinding through CORSMiddleware, so the browser reported that
+    # as a CORS failure ("Failed to fetch") with no indication a
+    # broker problem was the actual cause. The provider-key write
+    # itself already succeeded above by this point — only the
+    # provisioning dispatch is at risk here — so a broker failure
+    # surfaces as a clear, catchable error on the response instead of
+    # masking a successful save behind an opaque crash.
     if payload.celery_broker_url:
         from app.workers.provisioning_worker import provision_channel_broker_task
 
-        provision_channel_broker_task.delay(
-            os.environ["FIREBASE_PROJECT_ID"], channel_id, payload.celery_broker_url
-        )
+        try:
+            provision_channel_broker_task.delay(
+                os.environ["FIREBASE_PROJECT_ID"], channel_id, payload.celery_broker_url
+            )
+        except Exception as exc:  # noqa: BLE001 — broker/queue errors surface as varied exception types
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Broker URL saved, but couldn't queue the worker provisioning task — "
+                    "the platform's task queue is unreachable right now. Try again shortly."
+                ),
+            ) from exc
 
     return _status_from_stored(get_provider_keys(db, channel_id))
 
